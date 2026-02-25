@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome to Fragrance Heaven</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #fce4ec; /* Very light pink background */
+        }
+        .container {
+            max-width: 600px;
+            margin: 20px auto;
+            background-color: #ffffff;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+        .header {
+            background-color: #f06292; /* Baby Pink */
+            padding: 20px;
+            text-align: center;
+        }
+        .header img {
+            max-width: 150px;
+            height: auto;
+        }
+        .content {
+            padding: 40px;
+            text-align: center;
+            color: #333333;
+        }
+        .content h1 {
+            color: #f06292;
+            margin-bottom: 20px;
+        }
+        .content p {
+            line-height: 1.6;
+            font-size: 16px;
+        }
+        .footer {
+            background-color: #f8bbd0; /* Lighter Pink */
+            padding: 20px;
+            text-align: center;
+            font-size: 12px;
+            color: #880e4f;
+        }
+        .btn {
+            display: inline-block;
+            padding: 12px 24px;
+            background-color: #f06292;
+            color: #ffffff !important;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: bold;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <!-- logo placeholder -->
+            <img th:src="${logoUrl}" alt="Fragrance Heaven Logo">
+        </div>
+        <div class="content">
+            <h1>Welcome, <span th:text="${name}">User</span>!</h1>
+            <p>We are thrilled to have you join <strong>Fragrance Heaven</strong>, your premier destination for the finest scents and fragrances.</p>
+            <p>Explore our wide collection of luxury perfumes, body mists, and essential oils tailored just for you.</p>
+            <a href="https://fragrance-heaven.com" class="btn">Explore Now</a>
+        </div>
+        <div class="footer">
+            <p>&copy; 2026 Fragrance Heaven. All rights reserved.</p>
+            <p>Visit us: <a href="https://fragrance-heaven.com" style="color: #880e4f;">www.fragrance-heaven.com</a></p>
+        </div>
+    </div>
+</body>
+</html>

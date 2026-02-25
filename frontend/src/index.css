@@ -1,0 +1,98 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&family=Prata&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --baby-pink: #FFD1DC;
+  --soft-pink: #FEE1E8;
+  --light-pink: #FFF0F5;
+  --luxury-gold: #D4AF37;
+  --text-main: #2C2C2C;
+  --text-secondary: #5C5C5C;
+  --white: #FFFFFF;
+  --transition-smooth: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+body {
+  font-family: 'Outfit', sans-serif;
+  color: var(--text-main);
+  background-color: var(--white);
+  -webkit-font-smoothing: antialiased;
+}
+
+.prata-regular {
+  font-family: "Prata", serif;
+  font-weight: 400;
+}
+
+/* Glassmorphism */
+.glass-effect {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+/* Luxury Card Hover */
+.luxury-card-hover {
+  transition: var(--transition-smooth);
+}
+
+.luxury-card-hover:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 20px 40px rgba(255, 209, 220, 0.3);
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--light-pink);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--baby-pink);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #ffb6c1;
+}
+
+/* Global Transitions */
+a,
+button {
+  transition: var(--transition-smooth);
+}
+
+.premium-button {
+  background: var(--text-main);
+  color: var(--white);
+  padding: 12px 30px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  font-weight: 600;
+  transition: var(--transition-smooth);
+}
+
+.premium-button:hover {
+  background: var(--baby-pink);
+  color: var(--text-main);
+}
+
+/* Active Link Styles */
+a.active hr {
+  display: block;
+}
+
+@media (max-width: 640px) {
+  a.active {
+    background-color: var(--baby-pink);
+    color: var(--text-main);
+  }
+}
