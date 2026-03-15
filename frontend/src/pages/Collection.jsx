@@ -133,6 +133,7 @@ const Collection = () => {
           {/* Product Sort */}
           <div className='relative'>
             <select
+              value={sortType}
               onChange={(e) => setSortType(e.target.value)}
               className='appearance-none border-b border-gray-100 text-[10px] pr-8 py-2 bg-transparent focus:outline-none focus:border-[#FFD1DC] font-bold text-gray-500 uppercase tracking-widest cursor-pointer'
             >

@@ -13,6 +13,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 @Service
@@ -202,6 +205,7 @@ public class OrderService {
             order.setAmount(amount);
             order.setPaymentMethod("Razorpay");
             order.setPayment(false);
+            order.setPaymentStatus("PENDING");
             order.setDate(System.currentTimeMillis());
             order.setDeliveryDate(order.getDate() + (5L * 24 * 60 * 60 * 1000));
             order.setTransactionId(transactionId);
@@ -218,8 +222,22 @@ public class OrderService {
 
             com.razorpay.Order razorpayOrder = razorpay.orders.create(orderRequest);
 
+            // Store the razorpayOrderId on our order immediately
+            String rzpOrderId = razorpayOrder.get("id");
+            savedOrder.setRazorpayOrderId(rzpOrderId);
+            orderRepository.save(savedOrder);
+
+            // Build a plain Map (Jackson-serializable) — do NOT use razorpayOrder.toJson()
+            // org.json.JSONObject is not serializable by Jackson and causes a 500
+            Map<String, Object> razorpayOrderMap = new HashMap<>();
+            razorpayOrderMap.put("id", rzpOrderId);
+            razorpayOrderMap.put("amount", razorpayOrder.get("amount"));
+            razorpayOrderMap.put("currency", razorpayOrder.get("currency"));
+            razorpayOrderMap.put("receipt", razorpayOrder.get("receipt"));
+
             response.put("success", true);
-            response.put("order", razorpayOrder.toJson());
+            response.put("order", razorpayOrderMap);
+            response.put("dbOrderId", savedOrder.getId());
 
         } catch (Exception e) {
             e.printStackTrace();
@@ -230,34 +248,73 @@ public class OrderService {
         return response;
     }
 
-    public Map<String, Object> verifyRazorpay(String userId, String razorpayOrderId) {
+    /**
+     * Verifies Razorpay payment using secure HMAC SHA256 signature.
+     * Formula: HMAC_SHA256(razorpayOrderId + "|" + razorpayPaymentId, keySecret) == razorpaySignature
+     */
+    public Map<String, Object> verifyRazorpay(String userId, String razorpayOrderId,
+            String razorpayPaymentId, String razorpaySignature, Long dbOrderId) {
         Map<String, Object> response = new HashMap<>();
 
         try {
-            RazorpayClient razorpay = new RazorpayClient(razorpayKeyId, razorpayKeySecret);
-            com.razorpay.Order orderInfo = razorpay.orders.fetch(razorpayOrderId);
+            // Step 1: HMAC SHA256 signature verification
+            String payload = razorpayOrderId + "|" + razorpayPaymentId;
+            Mac mac = Mac.getInstance("HmacSHA256");
+            SecretKeySpec secretKey = new SecretKeySpec(
+                    razorpayKeySecret.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
+            mac.init(secretKey);
+            byte[] hashBytes = mac.doFinal(payload.getBytes(StandardCharsets.UTF_8));
 
-            if ("paid".equals(orderInfo.get("status"))) {
-                String receipt = orderInfo.get("receipt");
-                Optional<Order> orderOptional = orderRepository.findById(Long.parseLong(receipt));
+            // Convert to hex string
+            StringBuilder hexHash = new StringBuilder();
+            for (byte b : hashBytes) {
+                hexHash.append(String.format("%02x", b));
+            }
+            String generatedSignature = hexHash.toString();
+
+            boolean isValid = generatedSignature.equals(razorpaySignature);
+            log.info("Razorpay signature verification: {}", isValid ? "PASSED" : "FAILED");
+
+            if (isValid) {
+                // Step 2: Find the order in DB
+                Optional<Order> orderOptional = orderRepository.findById(dbOrderId);
                 if (orderOptional.isPresent()) {
                     Order order = orderOptional.get();
                     order.setPayment(true);
+                    order.setPaymentStatus("PAID");
+                    order.setRazorpayPaymentId(razorpayPaymentId);
+                    order.setRazorpayOrderId(razorpayOrderId);
+                    order.setTransactionDate(System.currentTimeMillis());
                     orderRepository.save(order);
-                }
 
-                Optional<User> userOptional = userRepository.findById(Long.parseLong(userId));
-                if (userOptional.isPresent()) {
-                    User user = userOptional.get();
-                    user.setCartData(new HashMap<>());
-                    userRepository.save(user);
+                    // Step 3: Clear user's cart
+                    Optional<User> userOptional = userRepository.findById(Long.parseLong(userId));
+                    if (userOptional.isPresent()) {
+                        User user = userOptional.get();
+                        user.setCartData(new HashMap<>());
+                        userRepository.save(user);
+
+                        // Step 4: Send confirmation email
+                        emailService.sendOrderConfirmation(user.getEmail(), user.getName(), order);
+                        log.info("Order confirmation email sent to {}", user.getEmail());
+                    }
                 }
 
                 response.put("success", true);
-                response.put("message", "Payment Successful");
+                response.put("message", "Payment Verified Successfully");
             } else {
+                // Mark order as FAILED (don't delete - admin may need to investigate)
+                Optional<Order> orderOptional = orderRepository.findById(dbOrderId);
+                orderOptional.ifPresent(order -> {
+                    order.setPaymentStatus("FAILED");
+                    order.setRazorpayOrderId(razorpayOrderId);
+                    orderRepository.save(order);
+                });
+
+                log.warn("Razorpay signature mismatch for orderId={}, razorpayOrderId={}",
+                        dbOrderId, razorpayOrderId);
                 response.put("success", false);
-                response.put("message", "Payment Failed");
+                response.put("message", "Payment verification failed. Invalid signature.");
             }
 
         } catch (Exception e) {

@@ -215,4 +215,27 @@ public class UserService {
         }
         return response;
     }
+    public Map<String, Object> getProfile(Long userId) {
+        Map<String, Object> response = new HashMap<>();
+        try {
+            Optional<User> userOptional = userRepository.findById(userId);
+            if (!userOptional.isPresent()) {
+                response.put("success", false);
+                response.put("message", "User not found");
+                return response;
+            }
+            User user = userOptional.get();
+            // Return only safe fields — never expose password, OTP, etc.
+            Map<String, Object> userMap = new HashMap<>();
+            userMap.put("id", user.getId());
+            userMap.put("name", user.getName());
+            userMap.put("email", user.getEmail());
+            response.put("success", true);
+            response.put("user", userMap);
+        } catch (Exception e) {
+            response.put("success", false);
+            response.put("message", e.getMessage());
+        }
+        return response;
+    }
 }

@@ -1,0 +1,1 @@
+{"success":false,"message":"Error generating invoice: An error happened during template parsing (template: \"class path resource [templates/invoice.html]\")"}

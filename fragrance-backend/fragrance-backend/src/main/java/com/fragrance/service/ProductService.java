@@ -24,4 +24,7 @@ public interface ProductService {
     Map<String, Object> getRelatedProducts(Long productId);
 
     Map<String, Object> getBestSellers();
+
+    Map<String, Object> updateProduct(Long id, Map<String, Object> productData, MultipartFile imageMain,
+            MultipartFile[] gallery);
 }

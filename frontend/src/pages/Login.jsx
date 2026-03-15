@@ -1,5 +1,5 @@
 import React, { useState, useContext, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../api/api';
 import { useAlert } from '../context/AlertContext';
 import Loader from '../components/Loader';
@@ -18,13 +18,16 @@ const Login = () => {
 
     const { login, token, navigate } = useContext(ShopContext);
     const alert = useAlert();
+    const location = useLocation();
+    // Where to redirect after login (set by ReviewSection or other protected CTAs)
+    const returnPath = location.state?.from || '/';
 
     // Redirect if already logged in
     useEffect(() => {
         if (token) {
-            navigate('/');
+            navigate(returnPath);
         }
-    }, [token, navigate]);
+    }, [token, navigate, returnPath]);
 
     const onSubmitHandler = async (e) => {
         e.preventDefault();
@@ -45,7 +48,7 @@ const Login = () => {
                         setShowSuccessLoader(false);
                         login(response.data.token);
                         alert.success('Welcome back!');
-                        navigate('/');
+                        navigate(returnPath);
                     }, 1500);
                 } else {
                     alert.error(response.data.message || 'Login failed');

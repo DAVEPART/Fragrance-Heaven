@@ -3,15 +3,21 @@ import { assets } from '../assets/assets';
 import axios from 'axios';
 import { backendUrl } from '../App';
 import { useAlert } from '../context/AlertContext';
+import { useParams, useNavigate } from 'react-router-dom';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 
-const Add = ({ token }) => {
+const Edit = ({ token }) => {
+    const { id } = useParams();
+    const navigate = useNavigate();
     const alert = useAlert();
+
     // Images
-    const [imageMain, setImageMain] = useState(false);
+    const [imageMain, setImageMain] = useState(null);
+    const [existingImageMain, setExistingImageMain] = useState('');
     const [gallery, setGallery] = useState([]);
+    const [existingGallery, setExistingGallery] = useState([]);
 
     // Basic Info
     const [name, setName] = useState('');
@@ -51,9 +57,55 @@ const Add = ({ token }) => {
         }
     };
 
+    const fetchProductData = async () => {
+        try {
+            const response = await axios.post(`${backendUrl}/api/product/single`, { productId: id }, { headers: { token } });
+            if (response.data.success) {
+                const product = response.data.product;
+                setName(product.name || '');
+                setBrand(product.brand?.name || product.brand || '');
+                setCategory(product.category?.name || product.category || '');
+                setSubCategory(product.subCategory || '');
+                setSlug(product.slug || '');
+                setShortDescription(product.shortDescription || '');
+                setFullDescription(product.fullDescription || product.description || '');
+                setConcentration(product.concentration || 'EDP');
+                setCharacter(product.fragranceCharacter || 'Fresh');
+                setSeason(product.season || 'Spring');
+                setOccasion(product.occasion || 'Day');
+                setLongevity(product.longevity || 'Moderate');
+                setSillage(product.sillage || 'Moderate');
+                setIsFeatured(product.isFeatured || false);
+                setExistingImageMain(product.imageMain || '');
+                setExistingGallery(product.imageGallery || []);
+
+                if (product.sizes && product.sizes.length > 0) {
+                    setSizes(product.sizes.map(s => ({
+                        sizeMl: s.sizeMl,
+                        price: s.price,
+                        stock: s.stock
+                    })));
+                }
+
+                if (product.notes && product.notes.length > 0) {
+                    setNotes(product.notes.map(n => ({
+                        noteName: n.noteName,
+                        type: n.type
+                    })));
+                }
+            } else {
+                alert.error(response.data.message);
+            }
+        } catch (error) {
+            console.error('Error fetching product:', error);
+            alert.error("Failed to fetch product data");
+        }
+    };
+
     useEffect(() => {
         fetchOptions();
-    }, []);
+        fetchProductData();
+    }, [id]);
 
     // Handlers for dynamic sizes
     const addSize = () => setSizes([...sizes, { sizeMl: '', price: '', stock: 10 }]);
@@ -63,11 +115,9 @@ const Add = ({ token }) => {
         newSizes[index][field] = value;
         setSizes(newSizes);
 
-        // Real-time validation for stock
         if (field === 'stock') {
             const newErrors = [...sizeErrors];
             if (!newErrors[index]) newErrors[index] = {};
-
             if (!value || parseInt(value) <= 0) {
                 newErrors[index].stock = "Stock must be greater than 0";
             } else {
@@ -125,13 +175,13 @@ const Add = ({ token }) => {
             if (imageMain) formData.append('imageMain', imageMain);
             gallery.forEach((file) => formData.append('gallery', file));
 
-            const response = await axios.post(`${backendUrl}/api/product/add`, formData, {
+            const response = await axios.put(`${backendUrl}/api/product/update/${id}`, formData, {
                 headers: { token, 'Content-Type': 'multipart/form-data' },
             });
 
             if (response.data.success) {
                 alert.success(response.data.message);
-                // Reset logic here or navigate
+                navigate('/list');
             } else {
                 alert.error(response.data.message);
             }
@@ -143,6 +193,11 @@ const Add = ({ token }) => {
 
     return (
         <form onSubmit={onSubmitHandler} className="flex flex-col gap-10">
+            <div className="flex justify-between items-center">
+                <h1 className="text-2xl font-bold text-gray-800">Edit Product</h1>
+                <Button onClick={() => navigate('/list')} variant="outline" type="button">Back to List</Button>
+            </div>
+
             {/* Section: Basic Info */}
             <Card title="1. Basic Information">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -189,18 +244,25 @@ const Add = ({ token }) => {
             <Card title="2. Product Imagery">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <div>
-                        <p className="mb-3 text-sm font-medium text-gray-700">Main Hero Image</p>
+                        <p className="mb-3 text-sm font-medium text-gray-700">Main Hero Image (Click to change)</p>
                         <label htmlFor="imageMain" className="cursor-pointer block w-40 h-40 border-2 border-dashed border-gray-300 rounded-lg overflow-hidden relative group">
-                            <img className="w-full h-full object-cover" src={!imageMain ? assets.upload_area : URL.createObjectURL(imageMain)} alt="" />
+                            <img className="w-full h-full object-cover" src={imageMain ? URL.createObjectURL(imageMain) : (existingImageMain || assets.upload_area)} alt="" />
                             <input type="file" id="imageMain" onChange={(e) => setImageMain(e.target.files[0])} hidden accept="image/*" />
                         </label>
                     </div>
                     <div>
-                        <p className="mb-3 text-sm font-medium text-gray-700">Gallery Images</p>
+                        <p className="mb-3 text-sm font-medium text-gray-700">Gallery Images (New will be added)</p>
                         <div className="flex flex-wrap gap-4">
+                            {existingGallery.map((img, i) => (
+                                <div key={`existing-${i}`} className="w-20 h-20 border border-gray-200 rounded-lg relative overflow-hidden">
+                                    <img src={img} className="w-full h-full object-cover opacity-60" />
+                                    <div className="absolute inset-0 flex items-center justify-center text-[10px] text-white bg-black/20 font-bold">EXISTING</div>
+                                </div>
+                            ))}
                             {gallery.map((file, i) => (
-                                <div key={i} className="w-20 h-20 border border-gray-200 rounded-lg relative overflow-hidden">
+                                <div key={`new-${i}`} className="w-20 h-20 border border-primary-300 rounded-lg relative overflow-hidden">
                                     <img src={URL.createObjectURL(file)} className="w-full h-full object-cover" />
+                                    <div className="absolute top-0 right-0 bg-primary-500 text-white text-[10px] px-1 font-bold">NEW</div>
                                 </div>
                             ))}
                             <label className="cursor-pointer flex items-center justify-center w-20 h-20 border-2 border-dashed border-gray-300 rounded-lg hover:border-primary-500">
@@ -221,11 +283,14 @@ const Add = ({ token }) => {
                                 <div className="flex-1">
                                     <Input label={`Note ${index + 1}`} value={note.noteName} onChange={(e) => updateNote(index, 'noteName', e.target.value)} placeholder="e.g. Calabrian Bergamot" />
                                 </div>
-                                <select value={note.type} onChange={(e) => updateNote(index, 'type', e.target.value)} className="px-3 py-2 border border-gray-300 rounded-md mb-0.5 h-[42px]">
-                                    <option value="TOP">Top Note</option>
-                                    <option value="HEART">Heart Note</option>
-                                    <option value="BASE">Base Note</option>
-                                </select>
+                                <div className="flex flex-col gap-2">
+                                    <label className="text-sm font-medium text-gray-700">Type</label>
+                                    <select value={note.type} onChange={(e) => updateNote(index, 'type', e.target.value)} className="px-3 py-2 border border-gray-300 rounded-md h-[42px]">
+                                        <option value="TOP">Top Note</option>
+                                        <option value="HEART">Heart Note</option>
+                                        <option value="BASE">Base Note</option>
+                                    </select>
+                                </div>
                                 <button type="button" onClick={() => removeNote(index)} className="text-red-500 mb-2 font-bold px-2">×</button>
                             </div>
                         ))}
@@ -291,10 +356,10 @@ const Add = ({ token }) => {
             </Card>
 
             <div className="flex gap-4 justify-end">
-                <Button type="submit" variant="primary" size="lg" className="px-12">Submit Product to Catalog</Button>
+                <Button type="submit" variant="primary" size="lg" className="px-12">Update Product</Button>
             </div>
         </form>
     );
 };
 
-export default Add;
+export default Edit;

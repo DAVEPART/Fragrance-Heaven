@@ -1,9 +1,15 @@
 package com.fragrance.dto;
 
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotNull;
+
 public class ProductSizeDTO {
     private Long id;
     private String sizeMl;
     private Double price;
+
+    @NotNull(message = "Stock cannot be null")
+    @Min(value = 1, message = "Stock must be greater than 0")
     private Integer stock;
 
     public ProductSizeDTO() {

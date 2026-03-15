@@ -64,6 +64,26 @@ const Orders = () => {
     }
   };
 
+  const handleDownloadInvoice = async (orderId) => {
+    try {
+      const response = await api.get(`/api/order/${orderId}/invoice`, {
+        headers: { token },
+        responseType: 'blob',
+      });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `Invoice-${orderId}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error downloading invoice:', error);
+      alert.error("Failed to download invoice");
+    }
+  };
+
   const getDeliveryStatus = (deliveryTimestamp) => {
     if (!deliveryTimestamp) return 'Arrival Date N/A';
 
@@ -218,6 +238,13 @@ const Orders = () => {
                         </p>
                       )
                     )}
+                    <Button
+                      onClick={() => handleDownloadInvoice(order.id)}
+                      variant="outline"
+                      className="text-[10px] py-2.5 px-6 rounded-full bg-indigo-50 text-indigo-600 border border-indigo-100 hover:bg-indigo-100 transition-all font-bold shadow-sm flex-1 sm:flex-none"
+                    >
+                      Invoice
+                    </Button>
                     <Button
                       onClick={fetchOrders}
                       variant="outline"

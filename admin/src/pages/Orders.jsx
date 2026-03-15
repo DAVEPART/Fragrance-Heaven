@@ -52,6 +52,26 @@ const Orders = () => {
     }
   };
 
+  const handleDownloadInvoice = async (orderId) => {
+    try {
+      // Allow passing admin token if applicable, though endpoint currently works
+      const res = await axios.get(`http://localhost:8080/api/order/${orderId}/invoice`, {
+        responseType: 'blob',
+      });
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `Invoice-${orderId}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error downloading invoice:', error);
+      alert.error("Failed to download invoice");
+    }
+  };
+
   const getStatusBadge = (status) => {
     const statusMap = {
       'Order Placed': 'blue',
@@ -135,7 +155,8 @@ const Orders = () => {
                   <th className="py-4 px-6 font-bold">Customer</th>
                   <th className="py-4 px-6 font-bold">Items</th>
                   <th className="py-4 px-6 font-bold">Payment</th>
-                  <th className="py-4 px-6 font-bold">Status</th>
+                  <th className="px-6 py-4 font-semibold text-gray-500">Invoice</th>
+                  <th className="px-6 py-4 font-semibold text-gray-500 rounded-tr-xl">Status</th>
                   <th className="py-4 px-6 font-bold">Actions</th>
                 </tr>
               </thead>
@@ -159,7 +180,39 @@ const Orders = () => {
                           {order.payment ? "Paid" : "Pending"}
                         </Badge>
                         <p className="text-[10px] text-gray-400 font-medium">{order.paymentMethod}</p>
+                        {order.paymentStatus && order.paymentStatus !== 'PENDING' && (
+                          <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded-full w-fit
+                            ${order.paymentStatus === 'PAID' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-500'}`}>
+                            {order.paymentStatus}
+                          </span>
+                        )}
+                        {order.razorpayPaymentId && (
+                          <div className="mt-1 p-1.5 bg-blue-50 rounded-lg border border-blue-100">
+                            <p className="text-[9px] text-blue-400 uppercase tracking-wide font-bold">Payment ID</p>
+                            <p className="text-[9px] font-mono text-blue-700 break-all">{order.razorpayPaymentId}</p>
+                          </div>
+                        )}
+                        {order.razorpayOrderId && (
+                          <div className="mt-0.5 p-1.5 bg-indigo-50 rounded-lg border border-indigo-100">
+                            <p className="text-[9px] text-indigo-400 uppercase tracking-wide font-bold">RZP Order ID</p>
+                            <p className="text-[9px] font-mono text-indigo-700 break-all">{order.razorpayOrderId}</p>
+                          </div>
+                        )}
+                        {order.transactionDate && (
+                          <p className="text-[9px] text-gray-400 mt-0.5">
+                            Txn: {new Date(order.transactionDate).toLocaleString()}
+                          </p>
+                        )}
                       </div>
+                    </td>
+
+                    <td className="px-6 py-5">
+                      <button
+                        onClick={() => handleDownloadInvoice(order.id)}
+                        className="text-xs font-semibold bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded-full hover:bg-indigo-100 transition-colors border border-indigo-100"
+                      >
+                        Download
+                      </button>
                     </td>
                     <td className="py-5 px-6">
                       <Badge variant={getStatusBadge(order.status)} size="sm">

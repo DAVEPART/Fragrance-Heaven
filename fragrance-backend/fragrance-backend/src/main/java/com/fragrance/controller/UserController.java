@@ -1,6 +1,7 @@
 package com.fragrance.controller;
 
 import com.fragrance.service.UserService;
+import com.fragrance.util.JwtUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -14,6 +15,9 @@ public class UserController {
 
     @Autowired
     private UserService userService;
+
+    @Autowired
+    private JwtUtil jwtUtil;
 
     @PostMapping("/register")
     public ResponseEntity<Map<String, Object>> registerUser(@RequestBody Map<String, String> request) {
@@ -40,6 +44,25 @@ public class UserController {
         String password = request.get("password");
 
         Map<String, Object> response = userService.adminLogin(email, password);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * GET /api/user/profile
+     * Returns the logged-in user's name and email.
+     * Used by the frontend ShopContext to prefill the order form.
+     */
+    @GetMapping("/profile")
+    public ResponseEntity<Map<String, Object>> getProfile(
+            @RequestHeader(value = "token", required = false) String token) {
+        if (token == null || token.isEmpty()) {
+            return ResponseEntity.ok(Map.of("success", false, "message", "Login required"));
+        }
+        Long userId = jwtUtil.extractUserId(token);
+        if (userId == null) {
+            return ResponseEntity.ok(Map.of("success", false, "message", "Invalid token"));
+        }
+        Map<String, Object> response = userService.getProfile(userId);
         return ResponseEntity.ok(response);
     }
 

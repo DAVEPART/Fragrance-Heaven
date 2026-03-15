@@ -1,6 +1,7 @@
 package com.fragrance.model;
 
 import jakarta.persistence.*;
+import jakarta.validation.constraints.Min;
 
 @Entity
 @Table(name = "product_sizes")
@@ -16,6 +17,8 @@ public class ProductSize {
 
     private String sizeMl;
     private Double price;
+
+    @Min(1)
     private Integer stock;
 
     public ProductSize() {

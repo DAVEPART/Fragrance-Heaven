@@ -1,4 +1,4 @@
-import React, { useState, useContext, useEffect } from 'react';
+import React, { useState, useContext, useEffect, useRef, useCallback } from 'react';
 import Title from '../components/Title';
 import CartTotal from '../components/CartTotal';
 import { assets } from '../assets/assets';
@@ -9,10 +9,81 @@ import Input from '../components/common/Input';
 import Button from '../components/common/Button';
 import { useAlert } from '../context/AlertContext';
 
+// ─────────────────────────────────────────────────────────────────────────────
+// VALIDATION RULES
+// ─────────────────────────────────────────────────────────────────────────────
+const INDIAN_PHONE_REGEX = /^[6-9][0-9]{9}$/;
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/**
+ * Validates a single field by name. Returns error string or '' if valid.
+ */
+const validateField = (name, value, method, paymentDetails) => {
+    const v = typeof value === 'string' ? value.trim() : '';
+
+    switch (name) {
+        case 'firstName':
+            return v ? '' : 'First name is required';
+        case 'lastName':
+            return v ? '' : 'Last name is required';
+        case 'email':
+            if (!v) return 'Email is required';
+            if (!EMAIL_REGEX.test(v)) return 'Enter a valid email address';
+            return '';
+        case 'phone':
+            if (!v) return 'Mobile number is required';
+            if (!INDIAN_PHONE_REGEX.test(v))
+                return 'Enter a valid Indian mobile number (10 digits, start with 6–9)';
+            return '';
+        case 'street':
+            return v ? '' : 'Street address is required';
+        case 'city':
+            return v ? '' : 'City is required';
+        case 'state':
+            return v ? '' : 'State is required';
+        case 'zipcode':
+            return v ? '' : 'Zip / postal code is required';
+        case 'country':
+            return v ? '' : 'Country is required';
+        case 'transactionId':
+            if (method === 'stripe' && !v)
+                return 'Transaction ID is required for Stripe payments';
+            return '';
+        default:
+            return '';
+    }
+};
+
+/**
+ * Validates all form fields. Returns { errors, firstErrorField }
+ */
+const validateAll = (formData, method, paymentDetails) => {
+    const fields = ['firstName', 'lastName', 'email', 'phone', 'street', 'city', 'state', 'zipcode', 'country'];
+    const errors = {};
+
+    for (const field of fields) {
+        const error = validateField(field, formData[field], method, paymentDetails);
+        if (error) errors[field] = error;
+    }
+
+    // Stripe transaction ID
+    if (method === 'stripe') {
+        const err = validateField('transactionId', paymentDetails.transactionId, method, paymentDetails);
+        if (err) errors.transactionId = err;
+    }
+
+    const firstErrorField = fields.find(f => errors[f]) || Object.keys(errors)[0] || null;
+    return { errors, firstErrorField };
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// COMPONENT
+// ─────────────────────────────────────────────────────────────────────────────
 const PlaceOrder = () => {
-    const { navigate, token, currency, delivery_fee, userData } = useContext(ShopContext);
+    const { navigate, token, delivery_fee, userData } = useContext(ShopContext);
     const alert = useAlert();
     const [method, setMethod] = useState('cod');
+    const fieldRefs = useRef({});
 
     const [formData, setFormData] = useState({
         firstName: '',
@@ -26,7 +97,7 @@ const PlaceOrder = () => {
         phone: ''
     });
 
-    // Prefill user data when available
+    // Prefill user data — email is always from userData (read-only)
     useEffect(() => {
         if (userData) {
             const names = userData.name ? userData.name.split(' ') : ['', ''];
@@ -36,51 +107,169 @@ const PlaceOrder = () => {
                 lastName: names.slice(1).join(' ') || '',
                 email: userData.email || ''
             }));
+            // Auto-clear any stale email error the moment userData populates it
+            if (userData.email) {
+                setErrors(prev => ({ ...prev, email: '' }));
+            }
         }
     }, [userData]);
 
-    const [paymentDetails, setPaymentDetails] = useState({
-        transactionId: '',
-        notes: ''
-    });
-
+    const [paymentDetails, setPaymentDetails] = useState({ transactionId: '', notes: '' });
     const [submitting, setSubmitting] = useState(false);
     const [errors, setErrors] = useState({});
 
-    const validate = () => {
-        const newErrors = {};
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    // ── Single-field blur validation ──────────────────────────────────────────
+    const handleBlur = useCallback((e) => {
+        const { name, value } = e.target;
+        // Skip email — it's read-only, populated from userData asynchronously
+        if (name === 'email') return;
+        const error = validateField(name, value, method, paymentDetails);
+        setErrors(prev => ({ ...prev, [name]: error }));
+    }, [method, paymentDetails]);
 
-        if (!formData.firstName.trim()) newErrors.firstName = 'First name is required';
-        if (!formData.lastName.trim()) newErrors.lastName = 'Last name is required';
-        if (!formData.email.trim() || !emailRegex.test(formData.email)) newErrors.email = 'Valid email is required';
-        if (!formData.street.trim()) newErrors.street = 'Street address is required';
-        if (!formData.city.trim()) newErrors.city = 'City is required';
-        if (!formData.state.trim()) newErrors.state = 'State is required';
-        if (!formData.zipcode.trim()) newErrors.zipcode = 'Zipcode is required';
-        if (!formData.country.trim()) newErrors.country = 'Country is required';
-        if (!formData.phone.trim()) newErrors.phone = 'Phone number is required';
+    // ── Live clear-on-fix while typing ───────────────────────────────────────
+    const handleInputChange = useCallback((e) => {
+        const { name, value } = e.target;
 
-        if (method !== 'cod' && !paymentDetails.transactionId.trim()) {
-            newErrors.transactionId = 'Transaction ID is required for online payments';
+        // Phone: only allow digits, max 10 chars
+        if (name === 'phone') {
+            const digits = value.replace(/\D/g, '').slice(0, 10);
+            setFormData(prev => ({ ...prev, phone: digits }));
+            // Clear error live once valid
+            if (INDIAN_PHONE_REGEX.test(digits)) {
+                setErrors(prev => ({ ...prev, phone: '' }));
+            }
+            return;
         }
 
-        setErrors(newErrors);
-        return Object.keys(newErrors).length === 0;
-    };
-
-    const handleInputChange = (e) => {
-        const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
-    };
 
-    const handlePaymentDetailsChange = (name, value) => {
+        // Clear error live once the field has a value
+        if (errors[name] && value.trim()) {
+            setErrors(prev => ({ ...prev, [name]: '' }));
+        }
+    }, [errors]);
+
+    const handlePaymentDetailsChange = useCallback((name, value) => {
         setPaymentDetails(prev => ({ ...prev, [name]: value }));
+        if (errors[name] && value.trim()) {
+            setErrors(prev => ({ ...prev, [name]: '' }));
+        }
+    }, [errors]);
+
+    // ── Scroll to first invalid field ────────────────────────────────────────
+    const scrollToFirstError = (firstField) => {
+        const el = fieldRefs.current[firstField];
+        if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            el.focus?.();
+        }
     };
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // COD ORDER
+    // ─────────────────────────────────────────────────────────────────────────
+    const handleCodOrder = async (cartItemsStored, totalAmount) => {
+        const orderData = {
+            items: cartItemsStored,
+            amount: totalAmount,
+            address: formData,
+            paymentMethod: 'COD',
+            transactionId: '',
+            notes: paymentDetails.notes,
+            payment: false
+        };
+        const response = await api.post('/api/order/place', orderData, { headers: { token } });
+        if (response.data.success) {
+            alert.success('Order placed! Confirmation email sent to ' + formData.email);
+            localStorage.removeItem('order_placed');
+            setTimeout(() => navigate('/orders'), 2000);
+        } else {
+            alert.error('Order failed: ' + (response.data.message || 'Unknown error'));
+        }
+    };
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // RAZORPAY FLOW
+    // ─────────────────────────────────────────────────────────────────────────
+    const loadRazorpayScript = () =>
+        new Promise((resolve) => {
+            if (window.Razorpay) { resolve(true); return; }
+            const script = document.createElement('script');
+            script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+            script.onload = () => resolve(true);
+            script.onerror = () => resolve(false);
+            document.body.appendChild(script);
+        });
+
+    const handleRazorpayOrder = async (cartItemsStored, totalAmount) => {
+        const createRes = await api.post(
+            '/api/order/razorpay',
+            { items: cartItemsStored, amount: totalAmount, address: formData, notes: paymentDetails.notes },
+            { headers: { token } }
+        );
+        if (!createRes.data.success) throw new Error(createRes.data.message || 'Failed to initiate payment');
+
+        const razorpayOrderData = createRes.data.order;
+        const dbOrderId = createRes.data.dbOrderId;
+
+        const loaded = await loadRazorpayScript();
+        if (!loaded) throw new Error('Failed to load Razorpay. Check your internet connection.');
+
+        return new Promise((resolve, reject) => {
+            const options = {
+                key: import.meta.env.VITE_RAZORPAY_KEY_ID,
+                amount: razorpayOrderData.amount,
+                currency: razorpayOrderData.currency || 'INR',
+                name: 'Fragrance Heaven',
+                description: 'Premium Fragrance Purchase',
+                order_id: razorpayOrderData.id,
+                prefill: {
+                    name: `${formData.firstName} ${formData.lastName}`.trim(),
+                    email: formData.email,
+                    contact: formData.phone
+                },
+                theme: { color: '#FFD1DC' },
+                handler: async (response) => {
+                    try {
+                        const verifyRes = await api.post(
+                            '/api/order/verifyRazorpay',
+                            {
+                                razorpay_order_id: response.razorpay_order_id,
+                                razorpay_payment_id: response.razorpay_payment_id,
+                                razorpay_signature: response.razorpay_signature,
+                                orderId: dbOrderId
+                            },
+                            { headers: { token } }
+                        );
+                        if (verifyRes.data.success) {
+                            localStorage.removeItem('order_placed');
+                            resolve({ success: true });
+                        } else {
+                            resolve({ success: false, message: verifyRes.data.message });
+                        }
+                    } catch (err) { reject(err); }
+                },
+                modal: { ondismiss: () => resolve({ success: false, message: 'Payment cancelled.' }) }
+            };
+            const rzp = new window.Razorpay(options);
+            rzp.on('payment.failed', (r) =>
+                resolve({ success: false, message: r.error?.description || 'Payment failed.' })
+            );
+            rzp.open();
+        });
+    };
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // MAIN SUBMIT
+    // ─────────────────────────────────────────────────────────────────────────
     const handlePlaceOrder = async () => {
-        if (!validate()) {
-            alert.error('Please fix the errors in the form');
+        const { errors: newErrors, firstErrorField } = validateAll(formData, method, paymentDetails);
+        setErrors(newErrors);
+
+        if (Object.keys(newErrors).length > 0) {
+            alert.error('Please fix the errors highlighted below.');
+            if (firstErrorField) scrollToFirstError(firstErrorField);
             return;
         }
 
@@ -90,110 +279,215 @@ const PlaceOrder = () => {
             return;
         }
 
-        const cartItemsStored = JSON.parse(localStorage.getItem("order_placed")) || [];
+        const cartItemsStored = JSON.parse(localStorage.getItem('order_placed')) || [];
         if (cartItemsStored.length === 0) {
-            alert.error('Your cart is empty');
+            alert.error('Your cart is empty.');
             navigate('/cart');
             return;
         }
 
         setSubmitting(true);
-        const subtotal = cartItemsStored.reduce((total, item) => total + (item.price * item.quantity), 0);
+        const subtotal = cartItemsStored.reduce((sum, item) => sum + item.price * item.quantity, 0);
         const totalAmount = subtotal + (cartItemsStored.length > 0 ? delivery_fee : 0);
 
-        const orderData = {
-            items: cartItemsStored,
-            amount: totalAmount,
-            address: formData,
-            paymentMethod: method === 'cod' ? 'COD' : (method === 'stripe' ? 'Stripe' : 'Razorpay'),
-            transactionId: paymentDetails.transactionId,
-            notes: paymentDetails.notes,
-            payment: method === 'cod' ? false : true
-        };
-
         try {
-            const response = await api.post(
-                '/api/order/place',
-                orderData,
-                { headers: { token } }
-            );
-
-            if (response.data.success) {
-                alert.success('Order placed successfully! A confirmation email has been sent to ' + formData.email);
-                localStorage.removeItem("order_placed");
-                setTimeout(() => navigate('/orders'), 2000);
-            } else {
-                alert.error('Order failed: ' + (response.data.message || 'Unknown error'));
+            if (method === 'cod') {
+                await handleCodOrder(cartItemsStored, totalAmount);
+            } else if (method === 'razorpay') {
+                const result = await handleRazorpayOrder(cartItemsStored, totalAmount);
+                if (result.success) {
+                    alert.success('Payment successful! Order confirmed. Confirmation sent to ' + formData.email);
+                    setTimeout(() => navigate('/orders'), 2000);
+                } else {
+                    alert.error(result.message || 'Payment was not completed.');
+                }
+            } else if (method === 'stripe') {
+                const orderData = {
+                    items: cartItemsStored,
+                    amount: totalAmount,
+                    address: formData,
+                    paymentMethod: 'Stripe',
+                    transactionId: paymentDetails.transactionId,
+                    notes: paymentDetails.notes,
+                    payment: true
+                };
+                const response = await api.post('/api/order/place', orderData, { headers: { token } });
+                if (response.data.success) {
+                    alert.success('Order placed successfully!');
+                    localStorage.removeItem('order_placed');
+                    setTimeout(() => navigate('/orders'), 2000);
+                } else {
+                    alert.error('Order failed: ' + (response.data.message || 'Unknown error'));
+                }
             }
         } catch (error) {
-            console.error('Order Placement Error:', error.response?.data || error.message);
-            alert.error('An error occurred while placing the order.');
+            console.error('Order Error:', error);
+            alert.error(error.message || 'An error occurred while placing the order.');
         } finally {
             setSubmitting(false);
         }
     };
 
-    const cartItemsStored = JSON.parse(localStorage.getItem("order_placed")) || [];
+    const cartItemsStored = JSON.parse(localStorage.getItem('order_placed')) || [];
+
+    // Helper: ref setter for scroll-to-error
+    const setRef = (name) => (el) => { fieldRefs.current[name] = el; };
 
     return (
         <div className='flex flex-col lg:flex-row justify-between gap-12 pt-10 min-h-[80vh] border-t border-gray-100 bg-white px-4 md:px-0'>
 
-            {/* Left Side: Delivery Information */}
+            {/* ── Left: Delivery Information ──────────────────────────────── */}
             <div className='flex flex-col gap-6 w-full lg:max-w-[500px] bg-white p-6 md:p-8 rounded-3xl theme-border shadow-sm'>
                 <div className='mb-4'>
                     <Title text1={'DELIVERY'} text2={'INFORMATION'} />
                     <p className='text-xs text-gray-400 mt-2 uppercase tracking-widest'>Where should we send your fragrance?</p>
                 </div>
 
+                {/* Name Row */}
                 <div className='flex flex-col md:flex-row gap-4'>
+                    <div ref={setRef('firstName')} className="w-full">
+                        <Input
+                            name="firstName"
+                            label="First Name"
+                            placeholder='John'
+                            value={formData.firstName}
+                            onChange={handleInputChange}
+                            onBlur={handleBlur}
+                            error={errors.firstName}
+                            required
+                        />
+                    </div>
+                    <div ref={setRef('lastName')} className="w-full">
+                        <Input
+                            name="lastName"
+                            label="Last Name"
+                            placeholder='Doe'
+                            value={formData.lastName}
+                            onChange={handleInputChange}
+                            onBlur={handleBlur}
+                            error={errors.lastName}
+                            required
+                        />
+                    </div>
+                </div>
+
+                {/* Email — read-only, prefilled from account */}
+                <div ref={setRef('email')}>
                     <Input
-                        name="firstName"
-                        label="First Name"
-                        placeholder='John'
-                        value={formData.firstName}
-                        onChange={handleInputChange}
-                        error={errors.firstName}
-                        readOnly={!!userData}
+                        name="email"
+                        label="Email Address"
+                        type="email"
+                        value={formData.email}
+                        onChange={() => {}} // read-only — locked to logged-in account
+                        error={errors.email}
+                        readOnly
+                        helper="Locked to your account · Order confirmation sent here"
+                        required
                     />
+                </div>
+
+                {/* Street */}
+                <div ref={setRef('street')}>
                     <Input
-                        name="lastName"
-                        label="Last Name"
-                        placeholder='Doe'
-                        value={formData.lastName}
+                        name="street"
+                        label="Street Address"
+                        placeholder='123 Fragrance Ave'
+                        value={formData.street}
                         onChange={handleInputChange}
-                        error={errors.lastName}
-                        readOnly={!!userData}
+                        onBlur={handleBlur}
+                        error={errors.street}
+                        required
                     />
                 </div>
 
-                <Input
-                    name="email"
-                    label="Email Address"
-                    type="email"
-                    placeholder='john@example.com'
-                    value={formData.email}
-                    onChange={handleInputChange}
-                    error={errors.email}
-                    readOnly={!!userData}
-                    helper="Order confirmation will be sent here"
-                />
-
-                <Input name="street" label="Street Address" placeholder='123 Fragrance Ave' value={formData.street} onChange={handleInputChange} error={errors.street} />
-
+                {/* City + State */}
                 <div className='flex flex-col md:flex-row gap-4'>
-                    <Input name="city" label="City" placeholder='Glace Bay' value={formData.city} onChange={handleInputChange} error={errors.city} />
-                    <Input name="state" label="State/Province" placeholder='NS' value={formData.state} onChange={handleInputChange} error={errors.state} />
+                    <div ref={setRef('city')} className="w-full">
+                        <Input
+                            name="city"
+                            label="City"
+                            placeholder='Mumbai'
+                            value={formData.city}
+                            onChange={handleInputChange}
+                            onBlur={handleBlur}
+                            error={errors.city}
+                            required
+                        />
+                    </div>
+                    <div ref={setRef('state')} className="w-full">
+                        <Input
+                            name="state"
+                            label="State"
+                            placeholder='Maharashtra'
+                            value={formData.state}
+                            onChange={handleInputChange}
+                            onBlur={handleBlur}
+                            error={errors.state}
+                            required
+                        />
+                    </div>
                 </div>
 
+                {/* Zip + Country */}
                 <div className='flex flex-col md:flex-row gap-4'>
-                    <Input name="zipcode" label="Zip/Postal Code" placeholder='B1A 1A1' value={formData.zipcode} onChange={handleInputChange} error={errors.zipcode} />
-                    <Input name="country" label="Country" placeholder='Canada' value={formData.country} onChange={handleInputChange} error={errors.country} />
+                    <div ref={setRef('zipcode')} className="w-full">
+                        <Input
+                            name="zipcode"
+                            label="Zip / Postal Code"
+                            placeholder='400001'
+                            value={formData.zipcode}
+                            onChange={handleInputChange}
+                            onBlur={handleBlur}
+                            error={errors.zipcode}
+                            required
+                        />
+                    </div>
+                    <div ref={setRef('country')} className="w-full">
+                        <Input
+                            name="country"
+                            label="Country"
+                            placeholder='India'
+                            value={formData.country}
+                            onChange={handleInputChange}
+                            onBlur={handleBlur}
+                            error={errors.country}
+                            required
+                        />
+                    </div>
                 </div>
 
-                <Input name="phone" label="Phone Number" placeholder='+1 123 456 7890' value={formData.phone} onChange={handleInputChange} error={errors.phone} />
+                {/* Mobile — Indian validation */}
+                <div ref={setRef('phone')}>
+                    <Input
+                        name="phone"
+                        label="Mobile Number"
+                        type="tel"
+                        inputMode="numeric"
+                        placeholder='9876543210'
+                        value={formData.phone}
+                        onChange={handleInputChange}
+                        onBlur={handleBlur}
+                        error={errors.phone}
+                        maxLength={10}
+                        helper="10-digit Indian mobile number"
+                        required
+                    />
+                </div>
+
+                {/* Validation summary banner */}
+                {Object.keys(errors).some(k => errors[k]) && (
+                    <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-100 rounded-xl">
+                        <svg className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                        </svg>
+                        <p className="text-[10px] text-red-500 font-bold uppercase tracking-wider">
+                            Please fix the errors above before placing your order.
+                        </p>
+                    </div>
+                )}
             </div>
 
-            {/* Right Side: Order Summary & Payment */}
+            {/* ── Right: Summary + Payment ─────────────────────────────────── */}
             <div className='flex-1 flex flex-col gap-8'>
 
                 <div className='p-6 md:p-8 bg-white theme-border rounded-3xl shadow-sm border border-gray-50'>
@@ -210,23 +504,38 @@ const PlaceOrder = () => {
                     </div>
 
                     <div className='grid grid-cols-1 md:grid-cols-3 gap-3 mb-6'>
-                        <div onClick={() => setMethod('stripe')} className={`flex items-center gap-3 border-2 p-4 rounded-2xl cursor-pointer transition-all ${method === 'stripe' ? 'border-primary-300 bg-primary-50/30' : 'border-gray-50 hover:border-primary-100'}`}>
+                        {/* Stripe */}
+                        <div
+                            onClick={() => setMethod('stripe')}
+                            className={`flex items-center gap-3 border-2 p-4 rounded-2xl cursor-pointer transition-all
+                                ${method === 'stripe' ? 'border-primary-300 bg-primary-50/30' : 'border-gray-50 hover:border-primary-100'}`}
+                        >
                             <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${method === 'stripe' ? 'border-primary-500' : 'border-gray-200'}`}>
-                                {method === 'stripe' && <div className='w-2 h-2 rounded-full bg-primary-500'></div>}
+                                {method === 'stripe' && <div className='w-2 h-2 rounded-full bg-primary-500' />}
                             </div>
                             <img className='h-4 grayscale hover:grayscale-0 transition-all' src={assets.stripe_logo} alt="Stripe" />
                         </div>
 
-                        <div onClick={() => setMethod('razorpay')} className={`flex items-center gap-3 border-2 p-4 rounded-2xl cursor-pointer transition-all ${method === 'razorpay' ? 'border-primary-300 bg-primary-50/30' : 'border-gray-50 hover:border-primary-100'}`}>
+                        {/* Razorpay */}
+                        <div
+                            onClick={() => setMethod('razorpay')}
+                            className={`flex items-center gap-3 border-2 p-4 rounded-2xl cursor-pointer transition-all
+                                ${method === 'razorpay' ? 'border-primary-300 bg-primary-50/30' : 'border-gray-50 hover:border-primary-100'}`}
+                        >
                             <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${method === 'razorpay' ? 'border-primary-500' : 'border-gray-200'}`}>
-                                {method === 'razorpay' && <div className='w-2 h-2 rounded-full bg-primary-500'></div>}
+                                {method === 'razorpay' && <div className='w-2 h-2 rounded-full bg-primary-500' />}
                             </div>
                             <img className='h-4 grayscale hover:grayscale-0 transition-all' src={assets.razorpay_logo} alt="Razorpay" />
                         </div>
 
-                        <div onClick={() => setMethod('cod')} className={`flex items-center gap-3 border-2 p-4 rounded-2xl cursor-pointer transition-all ${method === 'cod' ? 'border-primary-300 bg-primary-50/30' : 'border-gray-50 hover:border-primary-100'}`}>
+                        {/* COD */}
+                        <div
+                            onClick={() => setMethod('cod')}
+                            className={`flex items-center gap-3 border-2 p-4 rounded-2xl cursor-pointer transition-all
+                                ${method === 'cod' ? 'border-primary-300 bg-primary-50/30' : 'border-gray-50 hover:border-primary-100'}`}
+                        >
                             <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${method === 'cod' ? 'border-primary-500' : 'border-gray-200'}`}>
-                                {method === 'cod' && <div className='w-2 h-2 rounded-full bg-primary-500'></div>}
+                                {method === 'cod' && <div className='w-2 h-2 rounded-full bg-primary-500' />}
                             </div>
                             <p className='text-gray-500 text-[10px] font-bold uppercase tracking-widest'>COD</p>
                         </div>
@@ -249,9 +558,11 @@ const PlaceOrder = () => {
                             {submitting ? 'PROCESSING...' : 'COMPLETE PURCHASE'}
                         </Button>
                         <div className='flex items-center justify-center gap-2 mt-4 opacity-40'>
-                            <svg className="w-3 h-3 text-gray-400" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd"></path></svg>
+                            <svg className="w-3 h-3 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+                            </svg>
                             <p className='text-[9px] text-gray-500 uppercase tracking-widest'>
-                                Secured & Encrypted Payment
+                                Secured &amp; Encrypted Payment
                             </p>
                         </div>
                     </div>

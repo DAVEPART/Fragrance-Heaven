@@ -1,6 +1,7 @@
 import React, { useContext } from 'react'
 import { ShopContext } from '../context/ShopContext'
 import { Link } from 'react-router-dom'
+import { getImageUrl } from '../api/api'
 
 const LuxuryProductCard = ({ id, image, name, price, brand, concentration }) => {
     const { currency } = useContext(ShopContext);
@@ -14,7 +15,7 @@ const LuxuryProductCard = ({ id, image, name, price, brand, concentration }) => 
             <div className='relative overflow-hidden bg-[#F9F9F9] rounded-sm aspect-[4/5]'>
                 <img
                     className='w-full h-full object-cover mix-blend-multiply group-hover:scale-105 transition-transform duration-700 ease-out'
-                    src={image}
+                    src={getImageUrl(image)}
                     alt={name}
                 />
 

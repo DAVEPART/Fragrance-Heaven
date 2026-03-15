@@ -10,6 +10,8 @@ import Button from '../components/common/Button';
 import NotesPyramid from '../components/NotesPyramid';
 import FragranceProfile from '../components/FragranceProfile';
 import QuantitySelector from '../components/common/QuantitySelector';
+import ReviewSection from '../components/ReviewSection';
+import { saveRecentProduct } from '../utils/recentProducts';
 
 const Product = () => {
   const { productId } = useParams();
@@ -27,28 +29,27 @@ const Product = () => {
     setQuantity(1);
   }, [productId, selectedSizeIndex]);
 
-  useEffect(() => {
-    const fetchProductData = async () => {
-      try {
-        // Fetch using slug or ID - here we'll use single product API if available, 
-        // but for now we follow existing list pattern or update to use single
-        const response = await api.post('/api/product/single', { productId });
-        if (response.data.success) {
-          setProductData(response.data.product);
-          setImage(response.data.product.imageMain || response.data.product.imageGallery?.[0] || '');
-        } else {
-          alert.error('Product not found');
-        }
-      } catch (error) {
-        console.error('Error fetching product:', error);
-        alert.error('Failed to load product details');
-      } finally {
-        setLoading(false);
+  const fetchProductData = React.useCallback(async () => {
+    try {
+      const response = await api.post('/api/product/single', { productId });
+      if (response.data.success) {
+        setProductData(response.data.product);
+        saveRecentProduct(response.data.product);
+        setImage(response.data.product.imageMain || response.data.product.imageGallery?.[0] || '');
+      } else {
+        alert.error('Product not found');
       }
-    };
-
-    fetchProductData();
+    } catch (error) {
+      console.error('Error fetching product:', error);
+      alert.error('Failed to load product details');
+    } finally {
+      setLoading(false);
+    }
   }, [productId]);
+
+  useEffect(() => {
+    fetchProductData();
+  }, [fetchProductData]);
 
   const handleAddToCart = async () => {
     if (!token) {
@@ -196,6 +197,9 @@ const Product = () => {
         season={productData.season}
         occasion={productData.occasion}
       />
+
+      {/* CUSTOMER REVIEWS */}
+      <ReviewSection productId={Number(productId)} onReviewAdded={fetchProductData} />
 
       {/* BRAND / CRAFTSMANSHIP */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-24 items-center my-32">

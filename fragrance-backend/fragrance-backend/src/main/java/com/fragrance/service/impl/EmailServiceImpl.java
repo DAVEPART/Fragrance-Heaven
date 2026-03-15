@@ -12,6 +12,9 @@ import org.springframework.stereotype.Service;
 import org.thymeleaf.TemplateEngine;
 import org.thymeleaf.context.Context;
 
+import org.springframework.core.io.ByteArrayResource;
+import com.fragrance.service.InvoiceService;
+
 import java.util.HashMap;
 import java.util.Map;
 
@@ -22,6 +25,7 @@ public class EmailServiceImpl implements EmailService {
 
     private final JavaMailSender mailSender;
     private final TemplateEngine templateEngine;
+    private final InvoiceService invoiceService;
 
     @Value("${mail.from}")
     private String fromEmail;
@@ -51,6 +55,11 @@ public class EmailServiceImpl implements EmailService {
     @Async
     @Override
     public void sendHtmlEmail(String to, String subject, String templateName, Map<String, Object> variables) {
+        sendHtmlEmailWithAttachment(to, subject, templateName, variables, null, null);
+    }
+
+    @Override
+    public void sendHtmlEmailWithAttachment(String to, String subject, String templateName, Map<String, Object> variables, byte[] attachment, String attachmentName) {
         // Sanitize inputs
         String sanitizedTo = (to != null) ? to.trim() : "";
         String sanitizedFrom = (fromEmail != null) ? fromEmail.trim() : "";
@@ -76,6 +85,10 @@ public class EmailServiceImpl implements EmailService {
             helper.setSubject(subject);
             helper.setText(htmlContent, true);
 
+            if (attachment != null && attachmentName != null) {
+                helper.addAttachment(attachmentName, new ByteArrayResource(attachment));
+            }
+
             mailSender.send(mimeMessage);
             log.info("SUCCESS: Email sent successfully. Recipient: [{}], Subject: [{}]", sanitizedTo, subject);
         } catch (Exception e) {
@@ -100,10 +113,25 @@ public class EmailServiceImpl implements EmailService {
         variables.put("orderDate", new java.util.Date(order.getDate()));
         variables.put("deliveryDate", new java.util.Date(order.getDeliveryDate()));
         variables.put("paymentMethod", order.getPaymentMethod());
+        variables.put("paymentStatus", order.getPaymentStatus() != null ? order.getPaymentStatus() : "PENDING");
+        variables.put("razorpayPaymentId",
+                order.getRazorpayPaymentId() != null ? order.getRazorpayPaymentId() : "");
         variables.put("logoUrl",
                 "https://image2url.com/r2/default/images/1771608671397-4da66b08-148b-4a52-94c1-9935f0ade8d0.png");
 
-        sendHtmlEmail(toEmail, "Your Fragrance Heaven Order #" + order.getId() + " is Confirmed!", "order-confirmation",
-                variables);
+        byte[] invoicePdf = null;
+        try {
+            invoicePdf = invoiceService.generateInvoicePdf(order);
+        } catch (Exception e) {
+            log.error("Failed to generate PDF for order: {}", order.getId(), e);
+        }
+
+        if (invoicePdf != null) {
+            sendHtmlEmailWithAttachment(toEmail, "Your Fragrance Heaven Order #" + order.getId() + " is Confirmed!", "order-confirmation",
+                    variables, invoicePdf, "Invoice-" + order.getId() + ".pdf");
+        } else {
+            sendHtmlEmail(toEmail, "Your Fragrance Heaven Order #" + order.getId() + " is Confirmed!", "order-confirmation",
+                    variables);
+        }
     }
 }

@@ -122,7 +122,11 @@ public class ProductServiceImpl implements ProductService {
                 size.setProduct(product);
                 size.setSizeMl((String) sizeData.get("sizeMl"));
                 size.setPrice(Double.parseDouble(sizeData.get("price").toString()));
-                size.setStock(Integer.parseInt(sizeData.get("stock").toString()));
+                int stock = Integer.parseInt(sizeData.get("stock").toString());
+                if (stock <= 0) {
+                    throw new IllegalArgumentException("Stock must be greater than 0");
+                }
+                size.setStock(stock);
                 sizeRepository.save(size);
             }
         }
@@ -193,8 +197,14 @@ public class ProductServiceImpl implements ProductService {
                     .filter(p -> occasions == null
                             || occasions.stream().anyMatch(o -> o.equalsIgnoreCase(p.getOccasion())))
                     .filter(p -> seasons == null || seasons.stream().anyMatch(s -> s.equalsIgnoreCase(p.getSeason())))
-                    .filter(p -> (minPrice == null || (p.getPriceBase() != null && p.getPriceBase() >= minPrice)))
-                    .filter(p -> (maxPrice == null || (p.getPriceBase() != null && p.getPriceBase() <= maxPrice)))
+                    .filter(p -> {
+                        Double price = getEffectivePrice(p);
+                        return (minPrice == null || (price != null && price >= minPrice));
+                    })
+                    .filter(p -> {
+                        Double price = getEffectivePrice(p);
+                        return (maxPrice == null || (price != null && price <= maxPrice));
+                    })
                     .filter(p -> {
                         if (search == null || search.trim().isEmpty()) {
                             return true;
@@ -215,10 +225,10 @@ public class ProductServiceImpl implements ProductService {
             List<Product> sorted = new ArrayList<>(filtered);
             if ("price-low".equals(sort)) {
                 sorted.sort(
-                        Comparator.comparing(Product::getPriceBase, Comparator.nullsLast(Comparator.naturalOrder())));
+                        Comparator.comparing(this::getEffectivePrice, Comparator.nullsLast(Comparator.naturalOrder())));
             } else if ("price-high".equals(sort)) {
                 sorted.sort(
-                        Comparator.comparing(Product::getPriceBase, Comparator.nullsLast(Comparator.reverseOrder())));
+                        Comparator.comparing(this::getEffectivePrice, Comparator.nullsLast(Comparator.reverseOrder())));
             } else if ("rating".equals(sort)) {
                 sorted.sort(Comparator.comparing(Product::getRating, Comparator.nullsLast(Comparator.reverseOrder())));
             } else {
@@ -248,7 +258,20 @@ public class ProductServiceImpl implements ProductService {
     private List<String> parseList(String str) {
         if (str == null || str.isEmpty())
             return null;
-        return Arrays.asList(str.split(","));
+        return Arrays.stream(str.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .collect(Collectors.toList());
+    }
+
+    private Double getEffectivePrice(Product product) {
+        if (product.getPriceBase() != null) {
+            return product.getPriceBase();
+        }
+        if (product.getSizes() != null && !product.getSizes().isEmpty()) {
+            return product.getSizes().get(0).getPrice();
+        }
+        return null;
     }
 
     @Override
@@ -409,6 +432,102 @@ public class ProductServiceImpl implements ProductService {
             response.put("success", true);
             response.put("bestSellers", bestSellers);
         } catch (Exception e) {
+            response.put("success", false);
+            response.put("message", e.getMessage());
+        }
+        return response;
+    }
+
+    @Override
+    public Map<String, Object> updateProduct(Long id, Map<String, Object> productData, MultipartFile imageMain,
+            MultipartFile[] gallery) {
+        Map<String, Object> response = new HashMap<>();
+        try {
+            Optional<Product> productOpt = productRepository.findById(id);
+            if (productOpt.isEmpty()) {
+                response.put("success", false);
+                response.put("message", "Product not found");
+                return response;
+            }
+
+            Product product = productOpt.get();
+            product.setName((String) productData.get("name"));
+            product.setDescription((String) productData.get("description"));
+
+            // Handle Category
+            String categoryName = (String) productData.get("category");
+            if (categoryName != null) {
+                Category category = categoryRepository.findByName(categoryName)
+                        .orElseGet(() -> categoryRepository
+                                .save(new Category(categoryName, categoryName.toLowerCase().replace(" ", "-"))));
+                product.setCategory(category);
+            }
+
+            product.setSubCategory((String) productData.get("subCategory"));
+
+            // Handle Brand
+            String brandName = (String) productData.get("brand");
+            if (brandName != null) {
+                Brand brand = brandRepository.findByName(brandName)
+                        .orElseGet(() -> brandRepository
+                                .save(new Brand(brandName, brandName.toLowerCase().replace(" ", "-"), "")));
+                product.setBrand(brand);
+            }
+
+            product.setSlug((String) productData.get("slug"));
+            product.setShortDescription((String) productData.get("shortDescription"));
+            product.setFullDescription((String) productData.get("fullDescription"));
+            product.setConcentration((String) productData.get("concentration"));
+            product.setFragranceCharacter((String) productData.get("character"));
+            product.setSeason((String) productData.get("season"));
+            product.setOccasion((String) productData.get("occasion"));
+            product.setLongevity((String) productData.get("longevity"));
+            product.setSillage((String) productData.get("sillage"));
+            product.setIsFeatured(Boolean.TRUE.equals(productData.get("isFeatured")));
+
+            if (productData.get("priceBase") != null) {
+                product.setPriceBase(Double.parseDouble(productData.get("priceBase").toString()));
+            }
+
+            // Update Main Image if provided
+            if (imageMain != null && !imageMain.isEmpty()) {
+                product.setImageMain(fileStorageService.saveFile(imageMain));
+            }
+
+            // Update Gallery Images if provided (append for now)
+            if (gallery != null && gallery.length > 0) {
+                List<String> imageUrls = new ArrayList<>(product.getImageGallery());
+                for (MultipartFile img : gallery) {
+                    if (img != null && !img.isEmpty()) {
+                        imageUrls.add(fileStorageService.saveFile(img));
+                    }
+                }
+                product.setImageGallery(imageUrls);
+            }
+
+            // Update Sizes and Notes: Clear existing and add new
+            // Since cascade = CascadeType.ALL and orphanRemoval = true are set in
+            // Product.java,
+            // we should be able to clear and add.
+
+            // First, remove old sizes from DB manually if orphanRemoval alone is not enough
+            // or to be safe
+            sizeRepository.deleteAll(product.getSizes());
+            noteRepository.deleteAll(product.getNotes());
+
+            product.getSizes().clear();
+            product.getNotes().clear();
+
+            productRepository.save(product);
+
+            handleSizes(product, productData.get("sizes"));
+            handleNotes(product, productData.get("notes"));
+
+            response.put("success", true);
+            response.put("message", "Product Updated Successfully");
+
+        } catch (Exception e) {
+            e.printStackTrace();
             response.put("success", false);
             response.put("message", e.getMessage());
         }

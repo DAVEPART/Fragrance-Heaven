@@ -61,6 +61,9 @@ public class Product {
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Testimonial> testimonials;
 
+    @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<ProductReview> reviews;
+
     // ===== Constructors =====
     public Product() {
     }
@@ -265,5 +268,13 @@ public class Product {
 
     public void setTestimonials(List<Testimonial> testimonials) {
         this.testimonials = testimonials;
+    }
+
+    public List<ProductReview> getReviews() {
+        return reviews;
+    }
+
+    public void setReviews(List<ProductReview> reviews) {
+        this.reviews = reviews;
     }
 }

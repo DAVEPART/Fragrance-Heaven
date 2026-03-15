@@ -1,6 +1,6 @@
 # .env file - contains sensitive configuration
 .env
-
+/uploads
 # Maven
 target/
 !.mvn/wrapper/maven-wrapper.jar

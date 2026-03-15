@@ -55,4 +55,17 @@ public class Order {
     @Column
     @com.fasterxml.jackson.annotation.JsonProperty("deliveryDate")
     private Long deliveryDate;
+
+    // Razorpay payment fields
+    @Column
+    private String razorpayPaymentId;
+
+    @Column
+    private String razorpayOrderId;
+
+    @Column(nullable = false)
+    private String paymentStatus = "PENDING";
+
+    @Column
+    private Long transactionDate;
 }

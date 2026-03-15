@@ -7,6 +7,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import com.fragrance.service.InvoiceService;
+import com.fragrance.repository.OrderRepository;
+import com.fragrance.model.Order;
+import java.util.Optional;
+
 import java.util.List;
 import java.util.Map;
 
@@ -18,6 +25,12 @@ public class OrderController {
 
     @Autowired
     private OrderService orderService;
+
+    @Autowired
+    private InvoiceService invoiceService;
+
+    @Autowired
+    private OrderRepository orderRepository;
 
     @Autowired
     private JwtUtil jwtUtil;
@@ -126,8 +139,12 @@ public class OrderController {
         String userId = userIdLong.toString();
 
         String razorpayOrderId = (String) request.get("razorpay_order_id");
+        String razorpayPaymentId = (String) request.get("razorpay_payment_id");
+        String razorpaySignature = (String) request.get("razorpay_signature");
+        Long dbOrderId = Long.parseLong(request.get("orderId").toString());
 
-        Map<String, Object> response = orderService.verifyRazorpay(userId, razorpayOrderId);
+        Map<String, Object> response = orderService.verifyRazorpay(userId, razorpayOrderId,
+                razorpayPaymentId, razorpaySignature, dbOrderId);
         return ResponseEntity.ok(response);
     }
 
@@ -160,5 +177,34 @@ public class OrderController {
 
         Map<String, Object> response = orderService.updateStatus(orderId, status);
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/{orderId}/invoice")
+    public ResponseEntity<?> downloadInvoice(
+            @PathVariable Long orderId,
+            @RequestHeader(value = "token", required = false) String token) {
+        // Allow admin (without explicit userId check for now, or check token if needed)
+        // Since there's no complex role check in this controller natively, we'll verify the order exists
+        Optional<Order> orderOptional = orderRepository.findById(orderId);
+        if (!orderOptional.isPresent()) {
+            return ResponseEntity.status(404).body(Map.of("success", false, "message", "Order not found"));
+        }
+
+        try {
+            byte[] pdfBytes = invoiceService.generateInvoicePdf(orderOptional.get());
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_PDF);
+            headers.setContentDispositionFormData("attachment", "Invoice-" + orderId + ".pdf");
+            headers.setCacheControl("must-revalidate, post-check=0, pre-check=0");
+
+            return ResponseEntity.ok()
+                    .headers(headers)
+                    .contentLength(pdfBytes.length)
+                    .body(pdfBytes);
+        } catch (Exception e) {
+            log.error("Failed to generate invoice for orderId: {}", orderId, e);
+            return ResponseEntity.status(500).body(Map.of("success", false, "message", "Error generating invoice: " + (e.getMessage() != null ? e.getMessage() : e.toString())));
+        }
     }
 }

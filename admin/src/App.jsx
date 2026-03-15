@@ -3,6 +3,7 @@ import Navbar from './components/Navbar'
 import Sidebar from './components/Sidebar'
 import { Routes, Route } from 'react-router-dom'
 import Add from './pages/Add'
+import Edit from './pages/Edit'
 import List from './pages/List'
 import Category from './pages/Category'
 import Brand from './pages/Brand'
@@ -32,6 +33,7 @@ const App = () => {
             <div className='flex-1 mx-auto px-8 py-8 text-gray-600 text-base max-w-7xl'>
               <Routes>
                 <Route path='/add' element={<Add token={token} />} />
+                <Route path='/edit/:id' element={<Edit token={token} />} />
                 <Route path='/list' element={<List token={token} />} />
                 <Route path='/category' element={<Category token={token} />} />
                 <Route path='/brand' element={<Brand token={token} />} />

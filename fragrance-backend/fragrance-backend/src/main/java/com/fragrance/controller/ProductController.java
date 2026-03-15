@@ -110,4 +110,23 @@ public class ProductController {
         Map<String, Object> response = productService.getBestSellers();
         return ResponseEntity.ok(response);
     }
+
+    @PutMapping("/update/{id}")
+    public ResponseEntity<Map<String, Object>> updateProduct(
+            @PathVariable Long id,
+            @RequestParam("productData") String productDataJson,
+            @RequestParam(value = "imageMain", required = false) MultipartFile imageMain,
+            @RequestParam(value = "gallery", required = false) MultipartFile[] gallery) {
+
+        try {
+            Map<String, Object> productData = objectMapper.readValue(productDataJson,
+                    new TypeReference<Map<String, Object>>() {
+                    });
+            Map<String, Object> response = productService.updateProduct(id, productData, imageMain, gallery);
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            return ResponseEntity.ok(Map.of("success", false, "message", e.getMessage()));
+        }
+    }
 }
