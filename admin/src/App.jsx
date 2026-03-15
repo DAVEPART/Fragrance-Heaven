@@ -10,6 +10,7 @@ import Brand from './pages/Brand'
 import Contact from './pages/Contact'
 import Orders from './pages/Orders'
 import Login from './components/Login'
+import Coupons from './pages/Coupons'
 
 export const backendUrl = import.meta.env.VITE_BACKEND_URL
 export const currency = '₹'
@@ -39,6 +40,7 @@ const App = () => {
                 <Route path='/brand' element={<Brand token={token} />} />
                 <Route path='/orders' element={<Orders token={token} />} />
                 <Route path='/contact' element={<Contact token={token} />} />
+                <Route path='/coupons' element={<Coupons token={token} />} />
               </Routes>
             </div>
           </div>

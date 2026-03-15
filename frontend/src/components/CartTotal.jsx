@@ -2,7 +2,7 @@ import React, { useContext, useEffect, useState } from 'react';
 import Title from './Title';
 import { ShopContext } from '../context/ShopContext';
 
-const CartTotal = ({ cartItems }) => {
+const CartTotal = ({ cartItems, discountAmount = 0 }) => {
   const { currency, delivery_fee } = useContext(ShopContext);
   const [cartAmount, setCartAmount] = useState(0);
   const [totalAmount, setTotalAmount] = useState(0);
@@ -23,8 +23,8 @@ const CartTotal = ({ cartItems }) => {
   }, [cartItems]);
 
   useEffect(() => {
-    setTotalAmount(cartAmount + delivery_fee);
-  }, [cartAmount, delivery_fee]);
+    setTotalAmount(cartAmount + delivery_fee - discountAmount);
+  }, [cartAmount, delivery_fee, discountAmount]);
 
   return (
     <div className="w-full">
@@ -46,6 +46,15 @@ const CartTotal = ({ cartItems }) => {
             {delivery_fee}
           </p>
         </div>
+        {discountAmount > 0 && (
+          <div className="flex justify-between text-green-600 font-medium">
+            <p>Discount</p>
+            <p>
+              - {currency}
+              {discountAmount.toFixed(2)}
+            </p>
+          </div>
+        )}
         <hr />
         <div className="flex justify-between font-medium">
           <p>Total</p>

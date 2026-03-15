@@ -28,6 +28,11 @@ const Sidebar = () => {
                     <p className='hidden md:block'>Orders</p>
                 </NavLink>
 
+                <NavLink className={navLinkClass} to="/coupons">
+                    <img className='w-5 h-5' src={assets.order_icon} alt="Coupons" />
+                    <p className='hidden md:block'>Coupons</p>
+                </NavLink>
+
                 <NavLink className={navLinkClass} to="/category">
                     <img className='w-5 h-5' src={assets.add_icon} alt="Category" />
                     <p className='hidden md:block'>Categories</p>

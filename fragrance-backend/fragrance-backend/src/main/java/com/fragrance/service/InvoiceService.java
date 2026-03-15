@@ -87,7 +87,18 @@ public class InvoiceService {
         context.setVariable("logoUrl", "https://image2url.com/r2/default/images/1771608671397-4da66b08-148b-4a52-94c1-9935f0ade8d0.png");
 
         // Generate HTML
-        String html = templateEngine.process("invoice", context);
+        String html;
+        try {
+            html = templateEngine.process("invoice", context);
+        } catch (Exception e) {
+            Throwable root = e;
+            StringBuilder msgs = new StringBuilder();
+            while (root != null) {
+                msgs.append(root.getMessage()).append(" -> ");
+                root = root.getCause();
+            }
+            throw new Exception("Thymeleaf Parsing Error details: " + msgs.toString(), e);
+        }
 
         // Convert HTML5 to strictly valid XHTML
         Document document = Jsoup.parse(html, "UTF-8");
