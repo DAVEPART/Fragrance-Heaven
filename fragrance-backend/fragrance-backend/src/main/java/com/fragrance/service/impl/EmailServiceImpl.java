@@ -134,4 +134,20 @@ public class EmailServiceImpl implements EmailService {
                     variables);
         }
     }
+
+    @Async
+    @Override
+    public void sendCouponUnlockEmail(String toEmail, String userName, com.fragrance.model.DiscountCode code) {
+        log.info("Preparing coupon email for user: {}, recipient: {}", userName, toEmail);
+        Map<String, Object> variables = new HashMap<>();
+        variables.put("userName", userName);
+        variables.put("couponCode", code.getCode());
+        variables.put("discountPercent", code.getDiscountPercent());
+        variables.put("minOrderAmount", code.getMinimumOrderAmount());
+        variables.put("expireDate", code.getExpireAt());
+        variables.put("logoUrl",
+                "https://image2url.com/r2/default/images/1771608671397-4da66b08-148b-4a52-94c1-9935f0ade8d0.png");
+
+        sendHtmlEmail(toEmail, "Congratulations! You've unlocked a special discount!", "coupon", variables);
+    }
 }

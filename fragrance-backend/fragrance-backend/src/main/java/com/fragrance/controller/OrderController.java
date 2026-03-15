@@ -55,8 +55,9 @@ public class OrderController {
         Map<String, Object> address = (Map<String, Object>) request.get("address");
         String transactionId = (String) request.get("transactionId");
         String notes = (String) request.get("notes");
+        String couponCode = (String) request.get("couponCode");
 
-        Map<String, Object> response = orderService.placeOrder(userId, items, amount, address, transactionId, notes);
+        Map<String, Object> response = orderService.placeOrder(userId, items, amount, address, transactionId, notes, couponCode);
         return ResponseEntity.ok(response);
     }
 
@@ -78,8 +79,9 @@ public class OrderController {
         Double amount = ((Number) request.get("amount")).doubleValue();
         @SuppressWarnings("unchecked")
         Map<String, Object> address = (Map<String, Object>) request.get("address");
+        String couponCode = (String) request.get("couponCode");
 
-        Map<String, Object> response = orderService.placeOrderStripe(userId, items, amount, address, origin);
+        Map<String, Object> response = orderService.placeOrderStripe(userId, items, amount, address, origin, couponCode);
         return ResponseEntity.ok(response);
     }
 
@@ -120,9 +122,10 @@ public class OrderController {
         Map<String, Object> address = (Map<String, Object>) request.get("address");
         String transactionId = (String) request.get("transactionId");
         String notes = (String) request.get("notes");
+        String couponCode = (String) request.get("couponCode");
 
         Map<String, Object> response = orderService.placeOrderRazorpay(userId, items, amount, address, transactionId,
-                notes);
+                notes, couponCode);
         return ResponseEntity.ok(response);
     }
 

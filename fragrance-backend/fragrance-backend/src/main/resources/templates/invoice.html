@@ -62,7 +62,7 @@
                 </td>
                 <td style="text-align: right;">
                     <b>Invoice #:</b> INV-<span th:text="${orderId}">12345</span><br/>
-                    <b>Date:</b> <span th:text="${#calendars.format(orderDate, 'dd-MMM-yyyy')}">01-Jan-2023</span><br/><br/>
+                    <b>Date:</b> <span th:text="${#dates.format(orderDate, 'dd-MMM-yyyy')}">01-Jan-2023</span><br/><br/>
                     <b>Payment Method:</b> <span th:text="${paymentMethod}">Razorpay</span><br/>
                     <b>Payment Status:</b> 
                     <span th:if="${paymentStatus == 'PAID'}" class="badge badge-paid">PAID</span>
@@ -92,8 +92,8 @@
                         <span th:if="${item.size != null}"> (Size: <span th:text="${item.size}">100ml</span>)</span>
                     </td>
                     <td style="text-align: center;" th:text="${item.quantity}">2</td>
-                    <td class="amount"><span th:text="${currency}">₹</span><span th:text="${item.price}">2000</span></td>
-                    <td class="amount"><span th:text="${currency}">₹</span><span th:text="${item.price * item.quantity}">4000</span></td>
+                    <td class="amount"><span th:text="${currency}">Rs.</span><span th:text="${item.price}">2000</span></td>
+                    <td class="amount"><span th:text="${currency}">Rs.</span><span th:text="${item.price * item.quantity}">4000</span></td>
                 </tr>
             </tbody>
         </table>
@@ -102,15 +102,15 @@
         <table class="summary-table">
             <tr>
                 <td class="label">Subtotal:</td>
-                <td class="value"><span th:text="${currency}">₹</span><span th:text="${subtotal}">4000</span></td>
+                <td class="value"><span th:text="${currency}">Rs.</span><span th:text="${subtotal}">4000</span></td>
             </tr>
             <tr>
                 <td class="label">Shipping:</td>
-                <td class="value"><span th:text="${currency}">₹</span><span th:text="${shippingFee}">100</span></td>
+                <td class="value"><span th:text="${currency}">Rs.</span><span th:text="${shippingFee}">100</span></td>
             </tr>
             <tr class="total-row">
                 <td class="label">Total Amount:</td>
-                <td class="value"><span th:text="${currency}">₹</span><span th:text="${totalAmount}">4100</span></td>
+                <td class="value"><span th:text="${currency}">Rs.</span><span th:text="${totalAmount}">4100</span></td>
             </tr>
         </table>
         

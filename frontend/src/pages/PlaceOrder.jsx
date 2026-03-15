@@ -118,6 +118,12 @@ const PlaceOrder = () => {
     const [submitting, setSubmitting] = useState(false);
     const [errors, setErrors] = useState({});
 
+    const [couponCode, setCouponCode] = useState('');
+    const [appliedCoupon, setAppliedCoupon] = useState(null);
+    const [couponError, setCouponError] = useState('');
+    const [couponLoading, setCouponLoading] = useState(false);
+    const [earnedCoupon, setEarnedCoupon] = useState(null);
+
     // ── Single-field blur validation ──────────────────────────────────────────
     const handleBlur = useCallback((e) => {
         const { name, value } = e.target;
@@ -169,7 +175,7 @@ const PlaceOrder = () => {
     // ─────────────────────────────────────────────────────────────────────────
     // COD ORDER
     // ─────────────────────────────────────────────────────────────────────────
-    const handleCodOrder = async (cartItemsStored, totalAmount) => {
+    const handleCodOrder = async (cartItemsStored, totalAmount, finalCouponCode) => {
         const orderData = {
             items: cartItemsStored,
             amount: totalAmount,
@@ -177,13 +183,18 @@ const PlaceOrder = () => {
             paymentMethod: 'COD',
             transactionId: '',
             notes: paymentDetails.notes,
-            payment: false
+            payment: false,
+            couponCode: finalCouponCode
         };
         const response = await api.post('/api/order/place', orderData, { headers: { token } });
         if (response.data.success) {
             alert.success('Order placed! Confirmation email sent to ' + formData.email);
             localStorage.removeItem('order_placed');
-            setTimeout(() => navigate('/orders'), 2000);
+            if (response.data.earnedCouponDetails) {
+                setEarnedCoupon(response.data.earnedCouponDetails);
+            } else {
+                setTimeout(() => navigate('/orders'), 2000);
+            }
         } else {
             alert.error('Order failed: ' + (response.data.message || 'Unknown error'));
         }
@@ -202,10 +213,10 @@ const PlaceOrder = () => {
             document.body.appendChild(script);
         });
 
-    const handleRazorpayOrder = async (cartItemsStored, totalAmount) => {
+    const handleRazorpayOrder = async (cartItemsStored, totalAmount, finalCouponCode) => {
         const createRes = await api.post(
             '/api/order/razorpay',
-            { items: cartItemsStored, amount: totalAmount, address: formData, notes: paymentDetails.notes },
+            { items: cartItemsStored, amount: totalAmount, address: formData, notes: paymentDetails.notes, couponCode: finalCouponCode },
             { headers: { token } }
         );
         if (!createRes.data.success) throw new Error(createRes.data.message || 'Failed to initiate payment');
@@ -263,6 +274,31 @@ const PlaceOrder = () => {
     // ─────────────────────────────────────────────────────────────────────────
     // MAIN SUBMIT
     // ─────────────────────────────────────────────────────────────────────────
+    const handleApplyCoupon = async () => {
+        if (!couponCode.trim()) {
+            setCouponError('Please enter a code');
+            return;
+        }
+        setCouponLoading(true);
+        setCouponError('');
+        try {
+            const subtotal = cartItemsStored.reduce((sum, item) => sum + item.price * item.quantity, 0);
+            const res = await api.post('/api/coupon/validate', { code: couponCode, subtotal }, { headers: { token } });
+            if (res.data.success) {
+                setAppliedCoupon({ code: couponCode, amount: res.data.discountAmount });
+                alert.success('Promo code applied!');
+            } else {
+                setCouponError(res.data.message);
+                setAppliedCoupon(null);
+            }
+        } catch (err) {
+            setCouponError('Failed to validate coupon');
+            setAppliedCoupon(null);
+        } finally {
+            setCouponLoading(false);
+        }
+    };
+
     const handlePlaceOrder = async () => {
         const { errors: newErrors, firstErrorField } = validateAll(formData, method, paymentDetails);
         setErrors(newErrors);
@@ -288,13 +324,15 @@ const PlaceOrder = () => {
 
         setSubmitting(true);
         const subtotal = cartItemsStored.reduce((sum, item) => sum + item.price * item.quantity, 0);
-        const totalAmount = subtotal + (cartItemsStored.length > 0 ? delivery_fee : 0);
+        const discountAmount = appliedCoupon ? appliedCoupon.amount : 0;
+        const totalAmount = subtotal + (cartItemsStored.length > 0 ? delivery_fee : 0) - discountAmount;
+        const finalCouponCode = appliedCoupon ? appliedCoupon.code : null;
 
         try {
             if (method === 'cod') {
-                await handleCodOrder(cartItemsStored, totalAmount);
+                await handleCodOrder(cartItemsStored, totalAmount, finalCouponCode);
             } else if (method === 'razorpay') {
-                const result = await handleRazorpayOrder(cartItemsStored, totalAmount);
+                const result = await handleRazorpayOrder(cartItemsStored, totalAmount, finalCouponCode);
                 if (result.success) {
                     alert.success('Payment successful! Order confirmed. Confirmation sent to ' + formData.email);
                     setTimeout(() => navigate('/orders'), 2000);
@@ -309,13 +347,18 @@ const PlaceOrder = () => {
                     paymentMethod: 'Stripe',
                     transactionId: paymentDetails.transactionId,
                     notes: paymentDetails.notes,
-                    payment: true
+                    payment: true,
+                    couponCode: finalCouponCode
                 };
                 const response = await api.post('/api/order/place', orderData, { headers: { token } });
                 if (response.data.success) {
                     alert.success('Order placed successfully!');
                     localStorage.removeItem('order_placed');
-                    setTimeout(() => navigate('/orders'), 2000);
+                    if (response.data.earnedCouponDetails) {
+                        setEarnedCoupon(response.data.earnedCouponDetails);
+                    } else {
+                        setTimeout(() => navigate('/orders'), 2000);
+                    }
                 } else {
                     alert.error('Order failed: ' + (response.data.message || 'Unknown error'));
                 }
@@ -494,7 +537,44 @@ const PlaceOrder = () => {
                     <div className='mb-8'>
                         <Title text1={'TOTAL'} text2={'SUMMARY'} />
                     </div>
-                    <CartTotal cartItems={cartItemsStored} />
+                    <CartTotal cartItems={cartItemsStored} discountAmount={appliedCoupon ? appliedCoupon.amount : 0} />
+                    
+                    {/* Promo Code Input */}
+                    <div className="mt-6 border-t border-gray-100 pt-6">
+                        <p className="text-sm font-medium text-gray-700 mb-2">Have a Promo Code?</p>
+                        <div className="flex gap-3">
+                            <input
+                                type="text"
+                                placeholder="Enter code"
+                                value={couponCode}
+                                onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                                disabled={appliedCoupon !== null}
+                                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm uppercase focus:outline-none focus:border-primary-500 disabled:bg-gray-100 disabled:text-gray-500"
+                            />
+                            {appliedCoupon ? (
+                                <button
+                                    onClick={() => {
+                                        setAppliedCoupon(null);
+                                        setCouponCode('');
+                                        setCouponError('');
+                                    }}
+                                    className="px-4 py-2 bg-red-50 text-red-600 rounded-lg text-sm font-semibold hover:bg-red-100 transition-colors"
+                                >
+                                    REMOVE
+                                </button>
+                            ) : (
+                                <button
+                                    onClick={handleApplyCoupon}
+                                    disabled={couponLoading || !couponCode.trim()}
+                                    className="px-6 py-2 bg-gray-900 text-white rounded-lg text-sm font-semibold hover:bg-black transition-colors disabled:opacity-50"
+                                >
+                                    {couponLoading ? 'APPLYING...' : 'APPLY'}
+                                </button>
+                            )}
+                        </div>
+                        {couponError && <p className="text-xs text-red-500 mt-2">{couponError}</p>}
+                        {appliedCoupon && <p className="text-xs text-green-600 mt-2 font-medium">Coupon applied successfully!</p>}
+                    </div>
                 </div>
 
                 <div className='p-6 md:p-8 bg-white theme-border rounded-3xl shadow-lg border border-primary-50'>
@@ -568,6 +648,38 @@ const PlaceOrder = () => {
                     </div>
                 </div>
             </div>
+
+            {/* Earned Coupon Modal */}
+            {earnedCoupon && (
+                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-3xl max-w-sm w-full p-8 text-center shadow-2xl animate-fadeIn relative overflow-hidden">
+                        <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-primary-400 to-primary-600"></div>
+                        <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6 text-green-500">
+                            <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
+                        </div>
+                        <h2 className="text-2xl font-bold text-gray-800 mb-2">Congratulations!</h2>
+                        <p className="text-sm text-gray-600 mb-6">You've unlocked a discount code for your next purchase.</p>
+                        
+                        <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-6">
+                            <p className="text-xs text-gray-500 uppercase tracking-widest mb-1">Promo Code</p>
+                            <p className="text-3xl font-black text-primary-600 tracking-wider font-mono">{earnedCoupon.code}</p>
+                            <p className="text-xs font-semibold text-gray-700 mt-2">Get {earnedCoupon.discountPercent}% OFF</p>
+                            <p className="text-[10px] text-gray-400 mt-1">Valid until {new Date(earnedCoupon.expireAt).toLocaleDateString()}</p>
+                        </div>
+                        
+                        <Button
+                            onClick={() => {
+                                setEarnedCoupon(null);
+                                navigate('/orders');
+                            }}
+                            variant="primary"
+                            className="w-full tracking-wider"
+                        >
+                            AWESOME, THANKS!
+                        </Button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

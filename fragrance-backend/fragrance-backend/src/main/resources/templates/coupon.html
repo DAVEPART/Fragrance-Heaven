@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background-color: #f9f9f9; padding: 20px; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; background-color: #ffffff; padding: 40px; border-radius: 8px; text-align: center; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
+        h1 { color: #000; font-size: 24px; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 2px; }
+        p { line-height: 1.6; color: #555; font-size: 16px; margin-bottom: 20px; }
+        .coupon-box { margin: 30px 0; padding: 20px; background-color: #FFD1DC; border-radius: 8px; border: 2px dashed #ffb6c1; }
+        .coupon-code { font-size: 32px; font-weight: bold; color: #000; letter-spacing: 5px; }
+        .discount-text { font-size: 20px; font-weight: bold; color: #d6336c; margin-top: 10px; }
+        .terms { font-size: 12px; color: #888; text-align: left; background: #fafafa; padding: 15px; border-radius: 5px; }
+        .terms ul { margin: 0; padding-left: 20px; }
+        .btn { display: inline-block; padding: 15px 30px; background-color: #000; color: #fff; text-decoration: none; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; border-radius: 4px; margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <img th:src="${logoUrl}" alt="Fragrance Heaven" style="height: 50px; margin-bottom: 30px;">
+        <h1>A Special Gift For You</h1>
+        <p>Hi <b th:text="${userName}"></b>,</p>
+        <p>Thank you for your recent purchase! To show our appreciation, you've unlocked an exclusive discount for your next order.</p>
+        
+        <div class="coupon-box">
+            <div class="coupon-code" th:text="${couponCode}">CODE123</div>
+            <div class="discount-text"><span th:text="${#numbers.formatDecimal(discountPercent, 0, 0)}">10</span>% OFF</div>
+        </div>
+
+        <div class="terms">
+            <b>Terms & Conditions:</b>
+            <ul>
+                <li>Valid for orders above Rs. <span th:text="${#numbers.formatDecimal(minOrderAmount, 0, 0)}">3000</span></li>
+                <li>Expires on: <span th:text="${#dates.format(expireDate, 'dd MMM yyyy')}">01 Jan 2024</span></li>
+                <li>One-time use only. Cannot be combined with other offers.</li>
+            </ul>
+        </div>
+        
+        <a href="https://fragranceheaven.com" class="btn">Shop Now</a>
+    </div>
+</body>
+</html>

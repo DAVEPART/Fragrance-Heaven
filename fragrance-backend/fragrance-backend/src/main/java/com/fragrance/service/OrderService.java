@@ -1,5 +1,6 @@
 package com.fragrance.service;
 
+import com.fragrance.model.DiscountCode;
 import com.fragrance.model.Order;
 import com.fragrance.model.User;
 import com.fragrance.repository.OrderRepository;
@@ -31,6 +32,9 @@ public class OrderService {
     @Autowired
     private EmailService emailService;
 
+    @Autowired
+    private DiscountService discountService;
+
     @Value("${stripe.secret.key:}")
     private String stripeSecretKey;
 
@@ -44,7 +48,7 @@ public class OrderService {
     private static final int DELIVERY_CHARGE = 100;
 
     public Map<String, Object> placeOrder(String userId, Object items, Double amount, Map<String, Object> address,
-            String transactionId, String notes) {
+            String transactionId, String notes, String couponCode) {
         Map<String, Object> response = new HashMap<>();
 
         try {
@@ -62,6 +66,17 @@ public class OrderService {
             order.setNotes(notes);
 
             orderRepository.save(order);
+
+            if (couponCode != null && !couponCode.trim().isEmpty()) {
+                discountService.markDiscountUsed(couponCode, order.getId());
+            }
+
+            // Generate discount if applicable
+            DiscountCode generatedCode = discountService.issueDiscountIfNeeded(order);
+            if (generatedCode != null) {
+                response.put("earnedCoupon", generatedCode.getCode());
+                response.put("earnedCouponDetails", generatedCode);
+            }
 
             // Clear cart
             Optional<User> userOptional = userRepository.findById(Long.parseLong(userId));
@@ -87,7 +102,7 @@ public class OrderService {
     }
 
     public Map<String, Object> placeOrderStripe(String userId, List<Map<String, Object>> items,
-            Double amount, Map<String, Object> address, String origin) {
+            Double amount, Map<String, Object> address, String origin, String couponCode) {
         Map<String, Object> response = new HashMap<>();
 
         try {
@@ -104,6 +119,10 @@ public class OrderService {
             order.setDeliveryDate(order.getDate() + (5L * 24 * 60 * 60 * 1000));
 
             Order savedOrder = orderRepository.save(order);
+
+            if (couponCode != null && !couponCode.trim().isEmpty()) {
+                discountService.markDiscountUsed(couponCode, savedOrder.getId());
+            }
 
             // Create line items for Stripe
             List<SessionCreateParams.LineItem> lineItems = new ArrayList<>();
@@ -170,6 +189,7 @@ public class OrderService {
                     Order order = orderOptional.get();
                     order.setPayment(true);
                     orderRepository.save(order);
+                    discountService.issueDiscountIfNeeded(order);
                 }
 
                 Optional<User> userOptional = userRepository.findById(Long.parseLong(userId));
@@ -194,7 +214,7 @@ public class OrderService {
     }
 
     public Map<String, Object> placeOrderRazorpay(String userId, Object items, Double amount,
-            Map<String, Object> address, String transactionId, String notes) {
+            Map<String, Object> address, String transactionId, String notes, String couponCode) {
         Map<String, Object> response = new HashMap<>();
 
         try {
@@ -212,6 +232,10 @@ public class OrderService {
             order.setNotes(notes);
 
             Order savedOrder = orderRepository.save(order);
+
+            if (couponCode != null && !couponCode.trim().isEmpty()) {
+                discountService.markDiscountUsed(couponCode, savedOrder.getId());
+            }
 
             RazorpayClient razorpay = new RazorpayClient(razorpayKeyId, razorpayKeySecret);
 
@@ -286,6 +310,8 @@ public class OrderService {
                     order.setRazorpayOrderId(razorpayOrderId);
                     order.setTransactionDate(System.currentTimeMillis());
                     orderRepository.save(order);
+                    
+                    discountService.issueDiscountIfNeeded(order);
 
                     // Step 3: Clear user's cart
                     Optional<User> userOptional = userRepository.findById(Long.parseLong(userId));
