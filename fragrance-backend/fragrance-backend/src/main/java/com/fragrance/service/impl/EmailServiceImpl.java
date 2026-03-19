@@ -150,4 +150,25 @@ public class EmailServiceImpl implements EmailService {
 
         sendHtmlEmail(toEmail, "Congratulations! You've unlocked a special discount!", "coupon", variables);
     }
+
+    @Async
+    @Override
+    public void sendPurchaseReportEmail(String toEmail, String userName, String range,
+                                         int totalOrders, double totalAmount, byte[] pdfBytes) {
+        log.info("Preparing purchase report email for: {}, range: {}", toEmail, range);
+        Map<String, Object> variables = new HashMap<>();
+        variables.put("userName", userName);
+        variables.put("range", range);
+        variables.put("totalOrders", totalOrders);
+        variables.put("totalAmount", String.format("%.2f", totalAmount));
+        variables.put("generatedAt", new java.text.SimpleDateFormat("dd MMM yyyy, hh:mm a").format(new java.util.Date()));
+        variables.put("logoUrl",
+                "https://image2url.com/r2/default/images/1771608671397-4da66b08-148b-4a52-94c1-9935f0ade8d0.png");
+
+        String safeRange = range.toLowerCase().replace(" ", "-");
+        String pdfName = "PurchaseReport-" + safeRange + ".pdf";
+        String subject = "Your Fragrance Heaven Purchase Report \u2014 " + range;
+
+        sendHtmlEmailWithAttachment(toEmail, subject, "purchase-report-email", variables, pdfBytes, pdfName);
+    }
 }

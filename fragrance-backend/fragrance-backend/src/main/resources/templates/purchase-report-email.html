@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Your Fragrance Heaven Purchase Report</title>
+</head>
+<body style="margin:0; padding:0; background-color:#f9f1f4; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;">
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!--  OUTER WRAPPER                                         -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f9f1f4; padding: 28px 0;">
+  <tr>
+    <td align="center">
+      <table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px; width:100%; background-color:#ffffff; border-radius:20px; overflow:hidden; box-shadow: 0 8px 40px rgba(192,85,122,0.12);">
+
+        <!-- ─────────────── HERO HEADER ─────────────── -->
+        <tr>
+          <td style="background: linear-gradient(135deg, #f7c5d5 0%, #fde8ef 50%, #fff0f5 100%); padding: 40px 40px 32px 40px; text-align:center;">
+            <img th:src="${logoUrl}" alt="Fragrance Heaven" style="height:56px; display:block; margin: 0 auto 20px auto;" />
+            <h1 style="margin:0; font-size:26px; font-weight:800; color:#b0395e; letter-spacing:-0.5px;">Fragrance Heaven</h1>
+            <p style="margin:6px 0 0; font-size:13px; color:#d07090; font-weight:500; letter-spacing:2px; text-transform:uppercase;">Your Purchase Report is Ready ✨</p>
+          </td>
+        </tr>
+
+        <!-- ─────────────── GREETING ─────────────── -->
+        <tr>
+          <td style="padding: 32px 40px 0 40px;">
+            <h2 style="margin:0 0 12px; font-size:20px; font-weight:700; color:#3d2b30;">
+              Hi <span th:text="${userName}">Beautiful</span>! 💗
+            </h2>
+            <p style="margin:0; font-size:14px; color:#7a5860; line-height:1.7;">
+              Your purchase report for <strong style="color:#b0395e;" th:text="${range}">Last Month</strong> is ready and attached to this email as a PDF.
+              Here's a quick summary of your Fragrance Heaven journey during this period.
+            </p>
+          </td>
+        </tr>
+
+        <!-- ─────────────── SUMMARY CARD ─────────────── -->
+        <tr>
+          <td style="padding: 24px 40px;">
+            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background: linear-gradient(135deg, #ffe0ea, #fff5f8); border-radius:16px; border: 1px solid #ffc6da; overflow:hidden;">
+              <tr>
+                <td style="padding: 24px 28px;">
+                  <p style="margin:0 0 4px; font-size:10px; color:#c07090; font-weight:700; text-transform:uppercase; letter-spacing:1.5px;">Report Summary</p>
+                  <p style="margin:0 0 18px; font-size:13px; color:#7a5860;">Period: <strong th:text="${range}">Last Month</strong></p>
+
+                  <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                      <td width="50%" style="text-align:center; border-right: 1px solid #ffc6da; padding: 0 8px 0 0;">
+                        <p style="margin:0; font-size:30px; font-weight:800; color:#b0395e;" th:text="${totalOrders}">0</p>
+                        <p style="margin:4px 0 0; font-size:10px; color:#c07090; font-weight:600; text-transform:uppercase; letter-spacing:1px;">Orders</p>
+                      </td>
+                      <td width="50%" style="text-align:center; padding: 0 0 0 8px;">
+                        <p style="margin:0; font-size:30px; font-weight:800; color:#b0395e;">&#x20B9;<span th:text="${totalAmount}">0.00</span></p>
+                        <p style="margin:4px 0 0; font-size:10px; color:#c07090; font-weight:600; text-transform:uppercase; letter-spacing:1px;">Total Spent</p>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- ─────────────── PDF ATTACHMENT NOTE ─────────────── -->
+        <tr>
+          <td style="padding: 0 40px;">
+            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#fff8fa; border-radius:12px; border: 1px solid #ffd6e5;">
+              <tr>
+                <td style="padding: 16px 20px;">
+                  <table cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                      <td style="font-size:24px; padding-right:14px;">📎</td>
+                      <td>
+                        <p style="margin:0; font-size:12px; font-weight:700; color:#b0395e;">Your report is attached!</p>
+                        <p style="margin:4px 0 0; font-size:11px; color:#8a6070; line-height:1.5;">
+                          Open the attached PDF to see your full purchase breakdown — all orders, items, payments and totals in one clean report.
+                        </p>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- ─────────────── PROMO BANNER ─────────────── -->
+        <tr>
+          <td style="padding: 28px 40px;">
+            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background: linear-gradient(135deg, #b0395e 0%, #d06080 50%, #e8829e 100%); border-radius:16px; overflow:hidden;">
+              <tr>
+                <td style="padding: 28px 32px; text-align:center;">
+                  <p style="margin:0 0 4px; font-size:10px; color:rgba(255,255,255,0.8); font-weight:600; text-transform:uppercase; letter-spacing:2px;">Exclusive for You</p>
+                  <h3 style="margin:0 0 8px; font-size:20px; font-weight:800; color:#ffffff;">🌸 Treat Yourself Again!</h3>
+                  <p style="margin:0 0 20px; font-size:12px; color:rgba(255,255,255,0.85); line-height:1.6;">
+                    Discover our newest fragrance arrivals — hand-picked for our most valued customers.
+                    Your next signature scent is waiting for you.
+                  </p>
+                  <!-- CTA Button -->
+                  <a href="https://fragranceheaven.com/collection"
+                     style="display:inline-block; background-color:#ffffff; color:#b0395e; text-decoration:none; font-size:13px; font-weight:800; padding:14px 36px; border-radius:50px; letter-spacing:0.5px; box-shadow: 0 4px 16px rgba(0,0,0,0.2);">
+                    Shop New Arrivals &#x2192;
+                  </a>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- ─────────────── OFFERS STRIP ─────────────── -->
+        <tr>
+          <td style="padding: 0 40px 24px;">
+            <table width="100%" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td width="33%" style="padding: 0 4px; text-align:center;">
+                  <div style="background:#fff0f5; border-radius:12px; border:1px solid #ffd6e5; padding:16px 12px;">
+                    <p style="margin:0; font-size:18px;">🎁</p>
+                    <p style="margin:6px 0 2px; font-size:10px; font-weight:700; color:#b0395e;">Free Gift</p>
+                    <p style="margin:0; font-size:9px; color:#a07080;">On orders above ₹3000</p>
+                  </div>
+                </td>
+                <td width="33%" style="padding: 0 4px; text-align:center;">
+                  <div style="background:#fff0f5; border-radius:12px; border:1px solid #ffd6e5; padding:16px 12px;">
+                    <p style="margin:0; font-size:18px;">🚚</p>
+                    <p style="margin:6px 0 2px; font-size:10px; font-weight:700; color:#b0395e;">Free Delivery</p>
+                    <p style="margin:0; font-size:9px; color:#a07080;">Premium members only</p>
+                  </div>
+                </td>
+                <td width="33%" style="padding: 0 4px; text-align:center;">
+                  <div style="background:#fff0f5; border-radius:12px; border:1px solid #ffd6e5; padding:16px 12px;">
+                    <p style="margin:0; font-size:18px;">✨</p>
+                    <p style="margin:6px 0 2px; font-size:10px; font-weight:700; color:#b0395e;">VIP Rewards</p>
+                    <p style="margin:0; font-size:9px; color:#a07080;">Earn points on every buy</p>
+                  </div>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- ─────────────── SUPPORT ─────────────── -->
+        <tr>
+          <td style="padding: 0 40px 28px;">
+            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-top: 1px solid #ffe0ea;">
+              <tr>
+                <td style="padding-top: 20px; text-align:center;">
+                  <p style="margin:0; font-size:12px; color:#8a6070; line-height:1.7;">
+                    Questions about your report or orders?<br/>
+                    We're here for you at
+                    <a href="mailto:support@fragranceheaven.com" style="color:#b0395e; font-weight:700; text-decoration:none;">support@fragranceheaven.com</a>
+                  </p>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- ─────────────── FOOTER ─────────────── -->
+        <tr>
+          <td style="background: linear-gradient(135deg, #f7c5d5 0%, #fde8ef 100%); padding: 20px 40px; text-align:center; border-top: 1px solid #ffc6da;">
+            <p style="margin:0 0 4px; font-size:13px; font-weight:800; color:#b0395e;">Fragrance Heaven &#x1F338;</p>
+            <p style="margin:0; font-size:10px; color:#c07090;">123 Perfume Avenue, Mumbai 400001, India</p>
+            <p style="margin:8px 0 0; font-size:9px; color:#c07090;">
+              Generated on <span th:text="${generatedAt}">date</span>
+              &nbsp;&bull;&nbsp;
+              You're receiving this because you requested a purchase report.
+            </p>
+          </td>
+        </tr>
+
+      </table>
+    </td>
+  </tr>
+</table>
+
+</body>
+</html>

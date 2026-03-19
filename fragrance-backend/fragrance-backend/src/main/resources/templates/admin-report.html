@@ -1,0 +1,268 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <title>Admin Business Report - Fragrance Heaven</title>
+    <style type="text/css">
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Helvetica', 'Arial', sans-serif;
+            font-size: 11px;
+            color: #1a1a2e;
+            margin: 0;
+            padding: 40px;
+            background-color: #fff;
+        }
+        .report-box { width: 100%; max-width: 820px; margin: auto; }
+        /* ── Header ── */
+        .header {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            border-radius: 12px;
+            padding: 30px 32px;
+            margin-bottom: 28px;
+            color: #fff;
+        }
+        .header-table { width: 100%; border-collapse: collapse; }
+        .header-table td { vertical-align: middle; }
+        .brand-name { font-size: 22px; font-weight: bold; color: #FFD1DC; letter-spacing: 1px; }
+        .report-title { font-size: 13px; color: #a0c8ff; font-weight: normal; margin-top: 3px; }
+        .header-right { text-align: right; color: #a0b8d0; line-height: 1.8; font-size: 10px; }
+        .header-right strong { color: #FFD1DC; font-size: 11px; }
+        /* ── Section headings ── */
+        .section-heading {
+            background: linear-gradient(90deg, #1a1a2e, #0f3460);
+            color: #FFD1DC;
+            font-size: 9px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            padding: 8px 14px;
+            border-radius: 6px;
+            margin-bottom: 12px;
+            margin-top: 24px;
+        }
+        /* ── KPI Cards ── */
+        .kpi-row { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
+        .kpi-row td { width: 33%; text-align: center; padding: 0 5px; }
+        .kpi-card {
+            background-color: #f8faff;
+            border: 1px solid #dce8ff;
+            border-top: 3px solid #0f3460;
+            border-radius: 8px;
+            padding: 16px 12px;
+        }
+        .kpi-label { font-size: 9px; color: #6080a0; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; }
+        .kpi-value { font-size: 20px; font-weight: bold; color: #0f3460; margin-top: 4px; }
+        .kpi-sub { font-size: 9px; color: #8090a0; margin-top: 3px; }
+        /* ── Tables ── */
+        .data-table { width: 100%; border-collapse: collapse; margin-top: 4px; }
+        .data-table thead tr { background-color: #eef3ff; }
+        .data-table th {
+            padding: 9px 10px;
+            text-align: left;
+            font-size: 9px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            color: #0f3460;
+            border-bottom: 2px solid #c0d0f0;
+        }
+        .data-table td {
+            padding: 8px 10px;
+            border-bottom: 1px solid #eef0f8;
+            font-size: 10px;
+            color: #1a1a2e;
+        }
+        .data-table tr:nth-child(even) td { background-color: #f8faff; }
+        .data-table .amount { text-align: right; font-weight: bold; }
+        .data-table th.amount { text-align: right; }
+        /* ── Two column layout ── */
+        .two-col { width: 100%; border-collapse: collapse; }
+        .two-col td { width: 50%; vertical-align: top; padding: 0 6px; }
+        /* ── Breakdown lists ── */
+        .breakdown-item {
+            display: block;
+            padding: 7px 10px;
+            border-bottom: 1px solid #eef0f8;
+            font-size: 10px;
+        }
+        .breakdown-key { color: #0f3460; font-weight: bold; }
+        .breakdown-val { float: right; color: #6080a0; }
+        /* ── Badges ── */
+        .badge { padding: 2px 8px; border-radius: 20px; font-size: 9px; font-weight: bold; text-transform: uppercase; }
+        .badge-paid { background-color: #d1fae5; color: #065f46; }
+        .badge-pending { background-color: #fef3c7; color: #92400e; }
+        .badge-failed { background-color: #fee2e2; color: #991b1b; }
+        /* ── Empty state ── */
+        .empty-state {
+            text-align: center;
+            padding: 50px 20px;
+            background-color: #f8faff;
+            border: 2px dashed #c0d0f0;
+            border-radius: 12px;
+            color: #6080a0;
+        }
+        /* ── Footer ── */
+        .clear { clear: both; }
+        .footer {
+            margin-top: 50px;
+            text-align: center;
+            color: #6080a0;
+            font-size: 9px;
+            border-top: 1px solid #dce8ff;
+            padding-top: 16px;
+        }
+        .footer strong { color: #0f3460; }
+        .rank-badge {
+            background: linear-gradient(135deg, #FFD1DC, #ffb3c6);
+            color: #7d1f3d;
+            border-radius: 50%;
+            padding: 2px 7px;
+            font-size: 9px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+<div class="report-box">
+
+    <!-- ═══ HEADER ═══ -->
+    <div class="header">
+        <table class="header-table">
+            <tr>
+                <td>
+                    <img th:src="${logoUrl}" alt="Fragrance Heaven" style="height: 44px;" />
+                    <div class="brand-name" style="margin-top: 8px;">Fragrance Heaven</div>
+                    <div class="report-title">Business Analytics Report — Admin View</div>
+                </td>
+                <td class="header-right">
+                    <strong>Report Period</strong><br/>
+                    <span th:text="${report.range}">Last Month</span><br/><br/>
+                    <strong>Generated On</strong><br/>
+                    <span th:text="${report.generatedAt}">01 Jan 2025</span><br/><br/>
+                    <strong style="color: #a0c8ff;">CONFIDENTIAL</strong>
+                </td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- ═══ KPI CARDS ═══ -->
+    <div class="section-heading">Key Performance Indicators</div>
+    <table class="kpi-row">
+        <tr>
+            <td>
+                <div class="kpi-card">
+                    <div class="kpi-label">Total Orders</div>
+                    <div class="kpi-value" th:text="${report.totalOrders}">0</div>
+                    <div class="kpi-sub">orders received</div>
+                </div>
+            </td>
+            <td>
+                <div class="kpi-card">
+                    <div class="kpi-label">Total Revenue</div>
+                    <div class="kpi-value"><span th:text="${currency}">Rs.</span><span th:text="${#numbers.formatDecimal(report.totalRevenue, 1, 2)}">0</span></div>
+                    <div class="kpi-sub">incl. delivery charges</div>
+                </div>
+            </td>
+            <td>
+                <div class="kpi-card">
+                    <div class="kpi-label">Items Sold</div>
+                    <div class="kpi-value" th:text="${report.totalItemsSold}">0</div>
+                    <div class="kpi-sub">units across all orders</div>
+                </div>
+            </td>
+        </tr>
+    </table>
+
+    <!-- ═══ BEST SELLING PRODUCTS ═══ -->
+    <div th:if="${report.bestSellingProducts != null and !report.bestSellingProducts.empty}">
+        <div class="section-heading">Best Selling Products</div>
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th style="width: 8%;">Rank</th>
+                    <th>Product Name</th>
+                    <th class="amount">Units Sold</th>
+                    <th class="amount">Revenue</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr th:each="prod, idx : ${report.bestSellingProducts}">
+                    <td><span class="rank-badge" th:text="${idx.index + 1}">1</span></td>
+                    <td style="font-weight: bold;" th:text="${prod.name}">Product Name</td>
+                    <td class="amount" th:text="${prod.quantity}">0</td>
+                    <td class="amount"><span th:text="${currency}">Rs.</span><span th:text="${#numbers.formatDecimal(prod.revenue, 1, 2)}">0</span></td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- ═══ BREAKDOWN COLUMNS ═══ -->
+    <div class="section-heading">Payment Analytics</div>
+    <table class="two-col">
+        <tr>
+            <td>
+                <p style="font-size: 10px; font-weight: bold; color: #0f3460; margin-bottom: 8px;">By Payment Method</p>
+                <table class="data-table">
+                    <thead><tr><th>Method</th><th class="amount">Orders</th></tr></thead>
+                    <tbody>
+                        <tr th:each="entry : ${report.paymentMethodBreakdown}">
+                            <td th:text="${entry.key}">Method</td>
+                            <td class="amount" th:text="${entry.value}">0</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </td>
+            <td>
+                <p style="font-size: 10px; font-weight: bold; color: #0f3460; margin-bottom: 8px;">By Payment Status</p>
+                <table class="data-table">
+                    <thead><tr><th>Status</th><th class="amount">Count</th></tr></thead>
+                    <tbody>
+                        <tr th:each="entry : ${report.paymentStatusBreakdown}">
+                            <td>
+                                <span th:if="${entry.key == 'PAID'}" class="badge badge-paid">PAID</span>
+                                <span th:if="${entry.key == 'PENDING'}" class="badge badge-pending">PENDING</span>
+                                <span th:if="${entry.key != 'PAID' and entry.key != 'PENDING'}" class="badge badge-failed" th:text="${entry.key}">OTHER</span>
+                            </td>
+                            <td class="amount" th:text="${entry.value}">0</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </td>
+        </tr>
+    </table>
+
+    <!-- ═══ ORDERS BY DATE ═══ -->
+    <div th:if="${report.ordersByDate != null and !report.ordersByDate.empty}">
+        <div class="section-heading">Orders By Date</div>
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th class="amount">Orders</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr th:each="entry : ${report.ordersByDate}">
+                    <td th:text="${entry.key}">01 Jan</td>
+                    <td class="amount" th:text="${entry.value}">0</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- ═══ EMPTY STATE ═══ -->
+    <div th:unless="${hasOrders}" class="empty-state">
+        <p style="font-size: 14px;">No orders found for <strong th:text="${report.range}">period</strong></p>
+    </div>
+
+    <!-- ═══ FOOTER ═══ -->
+    <div class="footer">
+        <p><strong>Fragrance Heaven — Admin Report</strong> &#x2022; Generated: <span th:text="${report.generatedAt}">date</span></p>
+        <p style="margin-top: 4px;">This report is confidential and intended for authorized administrators only.</p>
+        <p style="margin-top: 4px;">support@fragranceheaven.com</p>
+    </div>
+
+</div>
+</body>
+</html>

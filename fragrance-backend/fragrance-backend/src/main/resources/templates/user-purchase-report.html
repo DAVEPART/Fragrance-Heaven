@@ -1,0 +1,303 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <title>Purchase Report - Fragrance Heaven</title>
+    <style type="text/css">
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Helvetica', 'Arial', sans-serif;
+            font-size: 11px;
+            color: #3d2b30;
+            margin: 0;
+            padding: 40px;
+            background-color: #fff;
+        }
+        .report-box { width: 100%; max-width: 820px; margin: auto; }
+        /* ── Header ── */
+        .header {
+            background: linear-gradient(135deg, #ffe0ea 0%, #fff5f8 100%);
+            border-radius: 12px;
+            padding: 30px 32px;
+            margin-bottom: 28px;
+        }
+        .header-table { width: 100%; border-collapse: collapse; }
+        .header-table td { vertical-align: middle; }
+        .brand-name { font-size: 22px; font-weight: bold; color: #c0557a; letter-spacing: 1px; }
+        .report-title { font-size: 14px; color: #e8829e; font-weight: normal; margin-top: 2px; }
+        .header-right { text-align: right; color: #b07080; line-height: 1.7; font-size: 10px; }
+        .header-right strong { color: #c0557a; font-size: 11px; }
+        /* ── Section headings ── */
+        .section-heading {
+            background-color: #ffe0ea;
+            color: #b0395e;
+            font-size: 10px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            padding: 8px 14px;
+            border-radius: 6px;
+            margin-bottom: 12px;
+            margin-top: 22px;
+        }
+        /* ── Info cards ── */
+        .info-grid { width: 100%; border-collapse: collapse; margin-bottom: 4px; }
+        .info-grid td { vertical-align: top; width: 50%; padding-right: 14px; }
+        .info-card {
+            background-color: #fff8fa;
+            border: 1px solid #ffd6e5;
+            border-radius: 10px;
+            padding: 14px 16px;
+            line-height: 1.9;
+        }
+        .info-card .label { color: #d07090; font-size: 9px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; }
+        .info-card .value { color: #3d2b30; font-weight: bold; font-size: 12px; }
+        .info-card .sub { color: #888; font-size: 10px; }
+        /* ── Summary cards row ── */
+        .summary-row { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+        .summary-row td { width: 33%; text-align: center; padding: 0 6px; }
+        .summary-card {
+            background: linear-gradient(135deg, #ffe0ea, #fff5f8);
+            border: 1px solid #ffd6e5;
+            border-radius: 10px;
+            padding: 14px 10px;
+        }
+        .summary-card .s-label { font-size: 9px; color: #c07090; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; }
+        .summary-card .s-value { font-size: 18px; font-weight: bold; color: #b0395e; margin-top: 4px; }
+        .summary-card .s-sub { font-size: 9px; color: #b07080; margin-top: 2px; }
+        /* ── Orders table ── */
+        .orders-table { width: 100%; border-collapse: collapse; margin-top: 4px; }
+        .orders-table thead tr {
+            background-color: #f9dce8;
+        }
+        .orders-table th {
+            padding: 10px 10px;
+            text-align: left;
+            font-size: 9px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            color: #b0395e;
+            border-bottom: 2px solid #ffc6da;
+        }
+        .orders-table td {
+            padding: 9px 10px;
+            border-bottom: 1px solid #ffe8f0;
+            vertical-align: top;
+            color: #3d2b30;
+            font-size: 10px;
+        }
+        .orders-table tr:nth-child(even) td { background-color: #fff8fa; }
+        .orders-table .amount { text-align: right; }
+        .orders-table th.amount { text-align: right; }
+        .badge {
+            display: inline-block;
+            padding: 2px 7px;
+            border-radius: 20px;
+            font-size: 9px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        .badge-paid { background-color: #d1fae5; color: #065f46; }
+        .badge-pending { background-color: #fef3c7; color: #92400e; }
+        .badge-failed { background-color: #fee2e2; color: #991b1b; }
+        /* ── Payment breakdown ── */
+        .breakdown-table { width: 100%; border-collapse: collapse; }
+        .breakdown-table td { padding: 7px 10px; border-bottom: 1px solid #ffe8f0; font-size: 10px; }
+        .breakdown-label { color: #b0395e; font-weight: bold; }
+        .breakdown-bar-cell { width: 55%; }
+        .breakdown-bar-bg { background: #ffe0ea; border-radius: 4px; height: 8px; }
+        .breakdown-bar { background: #e8829e; border-radius: 4px; height: 8px; }
+        /* ── Totals ── */
+        .totals-table { width: 300px; float: right; border-collapse: collapse; }
+        .totals-table td { padding: 7px 12px; }
+        .totals-table .t-label { font-weight: bold; color: #888; }
+        .totals-table .t-value { text-align: right; font-weight: bold; color: #3d2b30; }
+        .totals-table .t-total { background-color: #ffe0ea; font-size: 13px; }
+        .totals-table .t-total .t-label { color: #b0395e; }
+        .totals-table .t-total .t-value { color: #b0395e; }
+        /* ── Empty state ── */
+        .empty-state {
+            text-align: center;
+            padding: 50px 20px;
+            background: #fff8fa;
+            border: 2px dashed #ffc6da;
+            border-radius: 12px;
+            color: #c07090;
+        }
+        .empty-state .es-icon { font-size: 36px; margin-bottom: 12px; }
+        .empty-state p { font-size: 13px; }
+        /* ── Footer ── */
+        .clear { clear: both; }
+        .footer {
+            margin-top: 50px;
+            text-align: center;
+            color: #c07090;
+            font-size: 9px;
+            border-top: 1px solid #ffd6e5;
+            padding-top: 16px;
+        }
+        .footer strong { color: #b0395e; }
+    </style>
+</head>
+<body>
+<div class="report-box">
+
+    <!-- ═══ HEADER ═══ -->
+    <div class="header">
+        <table class="header-table">
+            <tr>
+                <td>
+                    <img th:src="${logoUrl}" alt="Fragrance Heaven" style="height: 44px;" />
+                    <div class="brand-name" style="margin-top: 8px;">Fragrance Heaven</div>
+                    <div class="report-title">Purchase Report</div>
+                </td>
+                <td class="header-right">
+                    <strong>Report Period</strong><br/>
+                    <span th:text="${report.range}">Last Month</span><br/><br/>
+                    <strong>Generated On</strong><br/>
+                    <span th:text="${report.generatedAt}">01 Jan 2025</span><br/><br/>
+                    <strong>support@fragranceheaven.com</strong>
+                </td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- ═══ CUSTOMER INFO ═══ -->
+    <div class="section-heading">Customer Information</div>
+    <table class="info-grid">
+        <tr>
+            <td>
+                <div class="info-card">
+                    <div class="label">Name</div>
+                    <div class="value" th:text="${report.userName}">Customer Name</div>
+                    <div class="label" style="margin-top: 10px;">Email</div>
+                    <div class="sub" th:text="${report.userEmail}">customer@email.com</div>
+                </div>
+            </td>
+            <td>
+                <div class="info-card">
+                    <div class="label">Report Period</div>
+                    <div class="value" th:text="${report.range}">Last Month</div>
+                    <div class="label" style="margin-top: 10px;">Generated</div>
+                    <div class="sub" th:text="${report.generatedAt}">01 Jan 2025</div>
+                </div>
+            </td>
+        </tr>
+    </table>
+
+    <!-- ═══ SUMMARY CARDS ═══ -->
+    <div class="section-heading">Summary</div>
+    <table class="summary-row">
+        <tr>
+            <td>
+                <div class="summary-card">
+                    <div class="s-label">Total Orders</div>
+                    <div class="s-value" th:text="${report.totalOrders}">0</div>
+                    <div class="s-sub">orders placed</div>
+                </div>
+            </td>
+            <td>
+                <div class="summary-card">
+                    <div class="s-label">Items Purchased</div>
+                    <div class="s-value" th:text="${report.totalItems}">0</div>
+                    <div class="s-sub">total items</div>
+                </div>
+            </td>
+            <td>
+                <div class="summary-card">
+                    <div class="s-label">Total Spent</div>
+                    <div class="s-value">
+                        <span th:text="${currency}">Rs.</span><span th:text="${#numbers.formatDecimal(report.totalAmount, 1, 2)}">0.00</span>
+                    </div>
+                    <div class="s-sub">incl. shipping</div>
+                </div>
+            </td>
+        </tr>
+    </table>
+
+    <!-- ═══ ORDERS TABLE ═══ -->
+    <div th:if="${hasOrders}">
+        <div class="section-heading">Order Details</div>
+        <table class="orders-table">
+            <thead>
+                <tr>
+                    <th>Order #</th>
+                    <th>Date</th>
+                    <th>Items</th>
+                    <th>Payment</th>
+                    <th>Status</th>
+                    <th class="amount">Subtotal</th>
+                    <th class="amount">Shipping</th>
+                    <th class="amount">Total</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr th:each="order : ${report.orders}">
+                    <td style="font-family: monospace; color: #c0557a;">#<span th:text="${order.orderId}">1</span></td>
+                    <td th:text="${order.orderDate}">01 Jan</td>
+                    <td>
+                        <span th:each="item, iter : ${order.items}">
+                            <span th:text="${item.name}">Product</span>
+                            x<span th:text="${item.quantity}">1</span><span th:if="${!iter.last}">,&#160;</span>
+                        </span>
+                    </td>
+                    <td th:text="${order.paymentMethod}">COD</td>
+                    <td>
+                        <span th:if="${order.paymentStatus == 'PAID'}" class="badge badge-paid">Paid</span>
+                        <span th:if="${order.paymentStatus == 'PENDING'}" class="badge badge-pending">Pending</span>
+                        <span th:if="${order.paymentStatus != 'PAID' and order.paymentStatus != 'PENDING'}" class="badge badge-failed" th:text="${order.paymentStatus}">N/A</span>
+                    </td>
+                    <td class="amount"><span th:text="${currency}">Rs.</span><span th:text="${#numbers.formatDecimal(order.subtotal, 1, 2)}">0</span></td>
+                    <td class="amount"><span th:text="${currency}">Rs.</span><span th:text="${order.shippingFee}">100</span></td>
+                    <td class="amount" style="font-weight: bold;"><span th:text="${currency}">Rs.</span><span th:text="${#numbers.formatDecimal(order.totalAmount, 1, 2)}">0</span></td>
+                </tr>
+            </tbody>
+        </table>
+
+        <!-- ═══ TOTALS ═══ -->
+        <div style="margin-top: 16px;">
+            <table class="totals-table">
+                <tr>
+                    <td class="t-label">Total Items:</td>
+                    <td class="t-value" th:text="${report.totalItems}">0</td>
+                </tr>
+                <tr>
+                    <td class="t-label">Total Orders:</td>
+                    <td class="t-value" th:text="${report.totalOrders}">0</td>
+                </tr>
+                <tr class="t-total">
+                    <td class="t-label">Grand Total:</td>
+                    <td class="t-value"><span th:text="${currency}">Rs.</span><span th:text="${#numbers.formatDecimal(report.totalAmount, 1, 2)}">0</span></td>
+                </tr>
+            </table>
+            <div class="clear"></div>
+        </div>
+
+        <!-- ═══ PAYMENT BREAKDOWN ═══ -->
+        <div class="section-heading" style="margin-top: 32px;">Payment Method Breakdown</div>
+        <table class="breakdown-table">
+            <tr th:each="entry : ${report.paymentMethodBreakdown}">
+                <td class="breakdown-label" style="width: 30%;" th:text="${entry.key}">Method</td>
+                <td style="width: 15%; text-align: right;" th:text="${entry.value + ' orders'}">0</td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- ═══ EMPTY STATE ═══ -->
+    <div th:unless="${hasOrders}" class="empty-state">
+        <div class="es-icon">&#x1F4AD;</div>
+        <p>No purchases found for the selected period: <strong th:text="${report.range}">Period</strong></p>
+        <p style="margin-top: 8px; color: #c07090; font-size: 11px;">Start shopping to see your purchases here!</p>
+    </div>
+
+    <!-- ═══ FOOTER ═══ -->
+    <div class="footer">
+        <p><strong>Fragrance Heaven</strong> &#x2022; 123 Perfume Avenue, Mumbai 400001, India</p>
+        <p style="margin-top: 4px;">Questions? Contact us at <strong>support@fragranceheaven.com</strong></p>
+        <p style="margin-top: 4px; color: #d0a0b0;">Thank you for shopping with us! &#x1F338;</p>
+    </div>
+
+</div>
+</body>
+</html>

@@ -213,46 +213,70 @@ public class OrderService {
         return response;
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // PENDING PAYMENT SESSION STORE
+    // Holds cart/address data between "create razorpay order" and "verify payment".
+    // Keyed by razorpayOrderId. No DB order is created until HMAC passes.
+    // ─────────────────────────────────────────────────────────────────────────
+    private final Map<String, PendingPaymentData> pendingPayments = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /**
+     * Lightweight value-object holding cart + delivery data for a pending Razorpay payment.
+     * Kept in memory only — discarded when payment succeeds or is cancelled/expired.
+     */
+    public static class PendingPaymentData {
+        public final String userId;
+        public final Object items;
+        public final Double amount;
+        public final Map<String, Object> address;
+        public final String notes;
+        public final String couponCode;
+        public final long createdAt;
+
+        public PendingPaymentData(String userId, Object items, Double amount,
+                Map<String, Object> address, String notes, String couponCode) {
+            this.userId = userId;
+            this.items = items;
+            this.amount = amount;
+            this.address = address;
+            this.notes = notes;
+            this.couponCode = couponCode;
+            this.createdAt = System.currentTimeMillis();
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // STEP 1: Create Razorpay order — NO DB order created here
+    // ─────────────────────────────────────────────────────────────────────────
     public Map<String, Object> placeOrderRazorpay(String userId, Object items, Double amount,
             Map<String, Object> address, String transactionId, String notes, String couponCode) {
         Map<String, Object> response = new HashMap<>();
 
         try {
-            Order order = new Order();
-            order.setUserId(userId);
-            order.setItems(items);
-            order.setAddress(address);
-            order.setAmount(amount);
-            order.setPaymentMethod("Razorpay");
-            order.setPayment(false);
-            order.setPaymentStatus("PENDING");
-            order.setDate(System.currentTimeMillis());
-            order.setDeliveryDate(order.getDate() + (5L * 24 * 60 * 60 * 1000));
-            order.setTransactionId(transactionId);
-            order.setNotes(notes);
-
-            Order savedOrder = orderRepository.save(order);
-
-            if (couponCode != null && !couponCode.trim().isEmpty()) {
-                discountService.markDiscountUsed(couponCode, savedOrder.getId());
+            if (razorpayKeyId == null || razorpayKeyId.isBlank()
+                    || razorpayKeySecret == null || razorpayKeySecret.isBlank()) {
+                response.put("success", false);
+                response.put("message", "Razorpay is not configured. Contact support.");
+                return response;
             }
 
             RazorpayClient razorpay = new RazorpayClient(razorpayKeyId, razorpayKeySecret);
 
             org.json.JSONObject orderRequest = new org.json.JSONObject();
-            orderRequest.put("amount", amount.intValue() * 100);
+            orderRequest.put("amount", amount.intValue() * 100); // paise
             orderRequest.put("currency", CURRENCY.toUpperCase());
-            orderRequest.put("receipt", savedOrder.getId().toString());
+            // Use timestamp as receipt (no DB order ID yet)
+            orderRequest.put("receipt", "rcpt_" + System.currentTimeMillis());
 
             com.razorpay.Order razorpayOrder = razorpay.orders.create(orderRequest);
-
-            // Store the razorpayOrderId on our order immediately
             String rzpOrderId = razorpayOrder.get("id");
-            savedOrder.setRazorpayOrderId(rzpOrderId);
-            orderRepository.save(savedOrder);
 
-            // Build a plain Map (Jackson-serializable) — do NOT use razorpayOrder.toJson()
-            // org.json.JSONObject is not serializable by Jackson and causes a 500
+            // ── Store pending session — no DB write ──
+            pendingPayments.put(rzpOrderId,
+                    new PendingPaymentData(userId, items, amount, address, notes, couponCode));
+            log.info("Pending Razorpay session created: razorpayOrderId={}, userId={}", rzpOrderId, userId);
+
+            // Build serializable map for frontend
             Map<String, Object> razorpayOrderMap = new HashMap<>();
             razorpayOrderMap.put("id", rzpOrderId);
             razorpayOrderMap.put("amount", razorpayOrder.get("amount"));
@@ -261,27 +285,48 @@ public class OrderService {
 
             response.put("success", true);
             response.put("order", razorpayOrderMap);
-            response.put("dbOrderId", savedOrder.getId());
+            // NOTE: no dbOrderId — frontend must send razorpayOrderId to verify endpoint
 
         } catch (Exception e) {
-            e.printStackTrace();
+            log.error("Failed to create Razorpay order for userId={}: {}", userId, e.getMessage(), e);
             response.put("success", false);
-            response.put("message", e.getMessage());
+            response.put("message", "Payment initiation failed: " + e.getMessage());
         }
 
         return response;
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // STEP 2: Cancel — user dismissed Razorpay popup
+    // ─────────────────────────────────────────────────────────────────────────
+    public Map<String, Object> cancelRazorpayPayment(String razorpayOrderId) {
+        pendingPayments.remove(razorpayOrderId);
+        log.info("Razorpay payment cancelled/dismissed, session cleaned: razorpayOrderId={}", razorpayOrderId);
+        return Map.of("success", true, "message", "Payment cancelled. Your order was not placed.");
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // STEP 3: Verify — HMAC check → ONLY THEN create DB order
+    // ─────────────────────────────────────────────────────────────────────────
     /**
-     * Verifies Razorpay payment using secure HMAC SHA256 signature.
+     * Verifies Razorpay HMAC SHA256 signature.
      * Formula: HMAC_SHA256(razorpayOrderId + "|" + razorpayPaymentId, keySecret) == razorpaySignature
+     * If verification passes, creates the DB order and returns {success:true}.
+     * If verification fails, cleans up the pending session and returns {success:false}.
      */
     public Map<String, Object> verifyRazorpay(String userId, String razorpayOrderId,
-            String razorpayPaymentId, String razorpaySignature, Long dbOrderId) {
+            String razorpayPaymentId, String razorpaySignature) {
         Map<String, Object> response = new HashMap<>();
 
         try {
-            // Step 1: HMAC SHA256 signature verification
+            // ── Guard: missing params ──
+            if (razorpayOrderId == null || razorpayPaymentId == null || razorpaySignature == null) {
+                response.put("success", false);
+                response.put("message", "Missing payment parameters.");
+                return response;
+            }
+
+            // ── HMAC SHA256 signature verification ──
             String payload = razorpayOrderId + "|" + razorpayPaymentId;
             Mac mac = Mac.getInstance("HmacSHA256");
             SecretKeySpec secretKey = new SecretKeySpec(
@@ -289,7 +334,6 @@ public class OrderService {
             mac.init(secretKey);
             byte[] hashBytes = mac.doFinal(payload.getBytes(StandardCharsets.UTF_8));
 
-            // Convert to hex string
             StringBuilder hexHash = new StringBuilder();
             for (byte b : hashBytes) {
                 hexHash.append(String.format("%02x", b));
@@ -297,56 +341,80 @@ public class OrderService {
             String generatedSignature = hexHash.toString();
 
             boolean isValid = generatedSignature.equals(razorpaySignature);
-            log.info("Razorpay signature verification: {}", isValid ? "PASSED" : "FAILED");
+            log.info("Razorpay signature verification for razorpayOrderId={}: {}",
+                    razorpayOrderId, isValid ? "PASSED" : "FAILED");
 
             if (isValid) {
-                // Step 2: Find the order in DB
-                Optional<Order> orderOptional = orderRepository.findById(dbOrderId);
-                if (orderOptional.isPresent()) {
-                    Order order = orderOptional.get();
-                    order.setPayment(true);
-                    order.setPaymentStatus("PAID");
-                    order.setRazorpayPaymentId(razorpayPaymentId);
-                    order.setRazorpayOrderId(razorpayOrderId);
-                    order.setTransactionDate(System.currentTimeMillis());
-                    orderRepository.save(order);
-                    
-                    discountService.issueDiscountIfNeeded(order);
+                // ── Retrieve pending session ──
+                PendingPaymentData pending = pendingPayments.remove(razorpayOrderId);
+                if (pending == null) {
+                    log.warn("No pending session found for razorpayOrderId={}. Possible duplicate verify.", razorpayOrderId);
+                    response.put("success", false);
+                    response.put("message", "Payment session not found or already processed.");
+                    return response;
+                }
 
-                    // Step 3: Clear user's cart
-                    Optional<User> userOptional = userRepository.findById(Long.parseLong(userId));
-                    if (userOptional.isPresent()) {
-                        User user = userOptional.get();
-                        user.setCartData(new HashMap<>());
-                        userRepository.save(user);
+                // ── Create DB order NOW (after verification) ──
+                Order order = new Order();
+                order.setUserId(pending.userId);
+                order.setItems(pending.items);
+                order.setAddress(pending.address);
+                order.setAmount(pending.amount);
+                order.setPaymentMethod("Razorpay");
+                order.setPayment(true);
+                order.setPaymentStatus("PAID");
+                order.setRazorpayPaymentId(razorpayPaymentId);
+                order.setRazorpayOrderId(razorpayOrderId);
+                order.setDate(System.currentTimeMillis());
+                order.setDeliveryDate(order.getDate() + (5L * 24 * 60 * 60 * 1000));
+                order.setNotes(pending.notes != null ? pending.notes : "");
+                order.setTransactionDate(System.currentTimeMillis());
 
-                        // Step 4: Send confirmation email
-                        emailService.sendOrderConfirmation(user.getEmail(), user.getName(), order);
-                        log.info("Order confirmation email sent to {}", user.getEmail());
+                Order savedOrder = orderRepository.save(order);
+                log.info("Order created after Razorpay verification: orderId={}, userId={}", savedOrder.getId(), userId);
+
+                // ── Apply coupon ──
+                if (pending.couponCode != null && !pending.couponCode.trim().isEmpty()) {
+                    try {
+                        discountService.markDiscountUsed(pending.couponCode, savedOrder.getId());
+                    } catch (Exception e) {
+                        log.warn("Coupon marking failed for orderId={}: {}", savedOrder.getId(), e.getMessage());
                     }
                 }
 
-                response.put("success", true);
-                response.put("message", "Payment Verified Successfully");
-            } else {
-                // Mark order as FAILED (don't delete - admin may need to investigate)
-                Optional<Order> orderOptional = orderRepository.findById(dbOrderId);
-                orderOptional.ifPresent(order -> {
-                    order.setPaymentStatus("FAILED");
-                    order.setRazorpayOrderId(razorpayOrderId);
-                    orderRepository.save(order);
-                });
+                // ── Issue discount if threshold reached ──
+                DiscountCode generatedCode = discountService.issueDiscountIfNeeded(savedOrder);
+                if (generatedCode != null) {
+                    response.put("earnedCoupon", generatedCode.getCode());
+                    response.put("earnedCouponDetails", generatedCode);
+                }
 
-                log.warn("Razorpay signature mismatch for orderId={}, razorpayOrderId={}",
-                        dbOrderId, razorpayOrderId);
+                // ── Clear cart + send confirmation email ──
+                Optional<User> userOptional = userRepository.findById(Long.parseLong(userId));
+                if (userOptional.isPresent()) {
+                    User user = userOptional.get();
+                    user.setCartData(new HashMap<>());
+                    userRepository.save(user);
+                    emailService.sendOrderConfirmation(user.getEmail(), user.getName(), savedOrder);
+                    log.info("Order confirmation email sent to {}", user.getEmail());
+                }
+
+                response.put("success", true);
+                response.put("message", "Payment successful! Your order has been placed.");
+                response.put("orderId", savedOrder.getId());
+
+            } else {
+                // ── HMAC failed — remove pending session, no order created ──
+                pendingPayments.remove(razorpayOrderId);
+                log.warn("Razorpay signature mismatch for razorpayOrderId={}", razorpayOrderId);
                 response.put("success", false);
-                response.put("message", "Payment verification failed. Invalid signature.");
+                response.put("message", "Payment verification failed. Invalid signature. No order was created.");
             }
 
         } catch (Exception e) {
-            e.printStackTrace();
+            log.error("Error during Razorpay verification for razorpayOrderId={}: {}", razorpayOrderId, e.getMessage(), e);
             response.put("success", false);
-            response.put("message", e.getMessage());
+            response.put("message", "Verification error: " + e.getMessage());
         }
 
         return response;
@@ -434,3 +502,4 @@ public class OrderService {
         return response;
     }
 }
+

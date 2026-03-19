@@ -213,7 +213,10 @@ const PlaceOrder = () => {
             document.body.appendChild(script);
         });
 
+    const rzpRef = useRef(null); // guards against double-click / duplicate Razorpay instances
+
     const handleRazorpayOrder = async (cartItemsStored, totalAmount, finalCouponCode) => {
+        // ── Step 1: Create Razorpay order on backend (NO DB order yet) ──
         const createRes = await api.post(
             '/api/order/razorpay',
             { items: cartItemsStored, amount: totalAmount, address: formData, notes: paymentDetails.notes, couponCode: finalCouponCode },
@@ -222,26 +225,44 @@ const PlaceOrder = () => {
         if (!createRes.data.success) throw new Error(createRes.data.message || 'Failed to initiate payment');
 
         const razorpayOrderData = createRes.data.order;
-        const dbOrderId = createRes.data.dbOrderId;
+        const rzpOrderId = razorpayOrderData.id; // used for cancel + verify
 
+        // ── Step 2: Load Razorpay script ──
         const loaded = await loadRazorpayScript();
         if (!loaded) throw new Error('Failed to load Razorpay. Check your internet connection.');
 
+        // ── Helper: call cancel endpoint to clean up pending session ──
+        const cleanupSession = async () => {
+            try {
+                await api.post('/api/order/razorpay/cancel', { razorpayOrderId: rzpOrderId }, { headers: { token } });
+            } catch (_) { /* best-effort */ }
+        };
+
+        // ── Step 3: Open Razorpay checkout ──
         return new Promise((resolve, reject) => {
+            // Guard: prevent duplicate instances
+            if (rzpRef.current) {
+                rzpRef.current.close?.();
+                rzpRef.current = null;
+            }
+
             const options = {
                 key: import.meta.env.VITE_RAZORPAY_KEY_ID,
                 amount: razorpayOrderData.amount,
                 currency: razorpayOrderData.currency || 'INR',
                 name: 'Fragrance Heaven',
                 description: 'Premium Fragrance Purchase',
-                order_id: razorpayOrderData.id,
+                order_id: rzpOrderId,
                 prefill: {
                     name: `${formData.firstName} ${formData.lastName}`.trim(),
                     email: formData.email,
                     contact: formData.phone
                 },
                 theme: { color: '#FFD1DC' },
+
+                // ── SUCCESS: verify HMAC on backend, create DB order only here ──
                 handler: async (response) => {
+                    rzpRef.current = null;
                     try {
                         const verifyRes = await api.post(
                             '/api/order/verifyRazorpay',
@@ -249,27 +270,43 @@ const PlaceOrder = () => {
                                 razorpay_order_id: response.razorpay_order_id,
                                 razorpay_payment_id: response.razorpay_payment_id,
                                 razorpay_signature: response.razorpay_signature,
-                                orderId: dbOrderId
+                                // NOTE: no orderId — backend uses razorpay_order_id to find pending session
                             },
                             { headers: { token } }
                         );
                         if (verifyRes.data.success) {
                             localStorage.removeItem('order_placed');
-                            resolve({ success: true });
+                            resolve({ success: true, data: verifyRes.data });
                         } else {
-                            resolve({ success: false, message: verifyRes.data.message });
+                            resolve({ success: false, message: verifyRes.data.message || 'Payment verification failed.' });
                         }
                     } catch (err) { reject(err); }
                 },
-                modal: { ondismiss: () => resolve({ success: false, message: 'Payment cancelled.' }) }
+
+                // ── CANCEL: user dismissed popup — clean up session, show message ──
+                modal: {
+                    ondismiss: async () => {
+                        rzpRef.current = null;
+                        await cleanupSession();
+                        resolve({ success: false, cancelled: true, message: 'Payment cancelled. Your order was not placed.' });
+                    }
+                }
             };
+
             const rzp = new window.Razorpay(options);
-            rzp.on('payment.failed', (r) =>
-                resolve({ success: false, message: r.error?.description || 'Payment failed.' })
-            );
+            rzpRef.current = rzp;
+
+            // ── FAILED: card declined / network error — clean up session ──
+            rzp.on('payment.failed', async (r) => {
+                rzpRef.current = null;
+                await cleanupSession();
+                resolve({ success: false, message: r.error?.description || 'Payment failed. Please try again.' });
+            });
+
             rzp.open();
         });
     };
+
 
     // ─────────────────────────────────────────────────────────────────────────
     // MAIN SUBMIT
@@ -334,10 +371,16 @@ const PlaceOrder = () => {
             } else if (method === 'razorpay') {
                 const result = await handleRazorpayOrder(cartItemsStored, totalAmount, finalCouponCode);
                 if (result.success) {
-                    alert.success('Payment successful! Order confirmed. Confirmation sent to ' + formData.email);
-                    setTimeout(() => navigate('/orders'), 2000);
+                    alert.success('Payment successful! Your order has been placed.');
+                    if (result.data?.earnedCouponDetails) {
+                        setEarnedCoupon(result.data.earnedCouponDetails);
+                    } else {
+                        setTimeout(() => navigate('/orders'), 2000);
+                    }
+                } else if (result.cancelled) {
+                    alert.error('Payment cancelled. Your order was not placed.');
                 } else {
-                    alert.error(result.message || 'Payment was not completed.');
+                    alert.error(result.message || 'Payment failed. Please try again.');
                 }
             } else if (method === 'stripe') {
                 const orderData = {

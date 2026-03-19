@@ -144,12 +144,31 @@ public class OrderController {
         String razorpayOrderId = (String) request.get("razorpay_order_id");
         String razorpayPaymentId = (String) request.get("razorpay_payment_id");
         String razorpaySignature = (String) request.get("razorpay_signature");
-        Long dbOrderId = Long.parseLong(request.get("orderId").toString());
+        // NOTE: dbOrderId is no longer used — backend looks up the pending session by razorpayOrderId
 
         Map<String, Object> response = orderService.verifyRazorpay(userId, razorpayOrderId,
-                razorpayPaymentId, razorpaySignature, dbOrderId);
+                razorpayPaymentId, razorpaySignature);
         return ResponseEntity.ok(response);
     }
+
+    /**
+     * POST /api/order/razorpay/cancel
+     * Called by frontend when user dismisses the Razorpay popup or payment fails.
+     * Removes the in-memory pending session — no DB order is ever created.
+     */
+    @PostMapping("/razorpay/cancel")
+    public ResponseEntity<Map<String, Object>> cancelRazorpayPayment(
+            @RequestBody Map<String, Object> request,
+            @RequestHeader(value = "token", required = false) String token) {
+        String razorpayOrderId = (String) request.get("razorpayOrderId");
+        if (razorpayOrderId == null || razorpayOrderId.isBlank()) {
+            // Idempotent — nothing to clean up
+            return ResponseEntity.ok(Map.of("success", true, "message", "Payment cancelled."));
+        }
+        Map<String, Object> response = orderService.cancelRazorpayPayment(razorpayOrderId);
+        return ResponseEntity.ok(response);
+    }
+
 
     @GetMapping("/list")
     public ResponseEntity<Map<String, Object>> allOrders() {

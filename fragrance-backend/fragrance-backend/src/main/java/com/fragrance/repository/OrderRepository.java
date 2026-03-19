@@ -12,6 +12,11 @@ import java.util.List;
 public interface OrderRepository extends JpaRepository<Order, Long> {
     List<Order> findByUserId(String userId);
 
+    // Report queries — date is stored as epoch millis (Long)
+    List<Order> findByUserIdAndDateBetween(String userId, Long from, Long to);
+
+    List<Order> findByDateBetween(Long from, Long to);
+
     @Query(value = "SELECT jt.productId, SUM(jt.totalSold) as totalSold " +
             "FROM orders o, " +
             "JSON_TABLE(o.items, '$[*]' COLUMNS ( " +
